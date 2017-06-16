@@ -19,4 +19,12 @@ def install_layer_haproxy():
     hookenv.log('ph test: {}'.format(ph.proxy_config.globall.configs()))
     set_state('haproxy.installed')
 
+@when_all('reverseproxy.triggered','haproxy.installed')
+@when_not('reverseproxy.ready')
+def configure_relation(reverseproxy,*args):
+    reverseproxy.configure(ports=[])
 
+@when_all('reverseproxy.triggered','reverseproxy.changed')
+def apply_config(reverseproxy,*args):
+    hookenv.log("TODO Apply config: {}".format(reverseproxy.config),"WARNING")
+    reverseproxy.set_cfg_status(True,"I just told you it was true, I'm not yet operational")

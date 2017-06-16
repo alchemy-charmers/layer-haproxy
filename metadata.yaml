@@ -10,9 +10,9 @@ tags:
 subordinate: false
 series:
  - xenial
-#provides:
-#  provides-relation:
-#    interface: interface-name
+provides:
+  reverseproxy:
+    interface: reverseproxy
 #requires:
 #  requires-relation:
 #    interface: interface-name
