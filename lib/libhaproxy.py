@@ -17,4 +17,17 @@ class ProxyHelper():
             self._proxy_config = Parser(self.proxy_config_file).build_configuration()
         return self._proxy_config 
 
-    
+    def process_config(self,config):
+        print(config)
+
+        frontend = None
+        for fe in self.proxy_config.frontends:
+            if fe.port == config['external_port']:
+                frontend = fe
+                break
+        if not frontend:
+            config_block = {'binds':[Config.Bind('0.0.0.0',config['external_port'],None)]}
+            frontend = Config.Frontend('relation-{}'.format(config['external_port']),None,None,config_block)
+            self.proxy_config.frontends.append(frontend)
+            Render(self.proxy_config).dumps_to('/etc/haproxy/haproxy.tst') 
+        raise Exception('spam','eggs')

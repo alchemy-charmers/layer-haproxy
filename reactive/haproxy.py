@@ -27,4 +27,5 @@ def configure_relation(reverseproxy,*args):
 @when_all('reverseproxy.triggered','reverseproxy.changed')
 def apply_config(reverseproxy,*args):
     hookenv.log("TODO Apply config: {}".format(reverseproxy.config),"WARNING")
+    ph.process_config(reverseproxy.config)
     reverseproxy.set_cfg_status(True,"I just told you it was true, I'm not yet operational")
