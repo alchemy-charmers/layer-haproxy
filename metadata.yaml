@@ -1,19 +1,21 @@
-name: layer-haproxy
-summary: <Fill in summary here>
-maintainer: Chris <Chris@chris-XPS-15-9550>
+name: haproxy
+summary: HAProxy
+maintainer: Chris Sanders <sanders.chris@gmail.com>
 description: |
-  <Multi-line description here>
+  Install HAProxy suitable for charms to register for reverse proxy of services
 tags:
   # Replace "misc" with one or more whitelisted tags from this list:
   # https://jujucharms.com/docs/stable/authors-charm-metadata
   - misc
 subordinate: false
-provides:
-  provides-relation:
-    interface: interface-name
-requires:
-  requires-relation:
-    interface: interface-name
-peers:
-  peer-relation:
-    interface: interface-name
+series:
+ - xenial
+#provides:
+#  provides-relation:
+#    interface: interface-name
+#requires:
+#  requires-relation:
+#    interface: interface-name
+#peers:
+#  peer-relation:
+#    interface: interface-name
