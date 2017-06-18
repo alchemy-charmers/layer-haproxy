@@ -3,6 +3,7 @@ from charmhelpers.core import hookenv, host
 from charmhelpers import fetch
 
 import subprocess
+import fileinput
 try:
     from libhaproxy import ProxyHelper
 except:
@@ -12,23 +13,37 @@ except:
 ph = ProxyHelper()
 
 @when_not('haproxy.installed')
-def install_layer_haproxy():
+def install_haproxy():
     hookenv.status_set('maintenance','Installing HAProxy')
     fetch.add_source(ph.ppa)
     fetch.install('haproxy')
     hookenv.log('ph test: {}'.format(ph.proxy_config.globall.configs()))
-    hookenv.status_set('active','')
     set_state('haproxy.installed')
 
-@when_all('reverseproxy.triggered','haproxy.installed')
+@when('haproxy.installed')
+@when_not('haproxy.configured')
+def configure_haproxy():
+    hookenv.status_set('maintenance','Configuring HAProxy')
+    # Enable udp for rsyslog
+    for line in fileinput.input('/etc/rsyslog.conf', inplace=True):
+        line = line.replace('#module(load="imudp")','module(load="imudp")')
+        line = line.replace('#input(type="imudp" port="514")','input(type="imudp" port="514")')
+        print(line,end='') # end statement to avoid inserting new lines at the end of the line
+    host.service_restart('rsyslog.service')
+    hookenv.status_set('active','')
+    set_state('haproxy.configured')
+
+@when_all('reverseproxy.triggered','haproxy.configured')
 @when_not('reverseproxy.ready')
-def configure_relation(reverseproxy,*args):
+def set_ready(reverseproxy,*args):
     reverseproxy.configure(ports=[])
 
+#TODO: look att host.restart_on_change to only reload if the cfg is changed
 @when_all('reverseproxy.triggered','reverseproxy.changed')
-def apply_config(reverseproxy,*args):
+def configure_relation(reverseproxy,*args):
     hookenv.status_set('maintenance','Setting up relation')
     hookenv.log("TODO Apply config: {}".format(reverseproxy.config),"WARNING")
     ph.process_config(reverseproxy.config)
+    host.service_reload('haproxy.service')
     hookenv.status_set('active','')
     reverseproxy.set_cfg_status(True,"I just told you it was true, I'm not yet operational")

@@ -5,6 +5,19 @@ from pyhaproxy.parse import Parser
 from pyhaproxy.render import Render
 import pyhaproxy.config as Config
 
+from collections import OrderedDict
+
+class ConfigBlock(OrderedDict):
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self['binds'] = []
+        self['users'] = []
+        self['groups'] = []
+        self['options'] = []
+        self['configs'] = []
+        self['acls'] = []
+        self['usebackends'] = []
+        self['servers'] = []
 
 class ProxyHelper():
     def __init__(self):
@@ -30,10 +43,9 @@ class ProxyHelper():
                 break
         if not frontend:
             hookenv.log("Creating frontend for port {}".format(config['external_port']),"INFO")
-            config_block = {'binds':[Config.Bind('0.0.0.0',config['external_port'],None)]}
-            config_block = defaultdict(list,config_block)
-            frontend = Config.Frontend('relation-{}'.format(config['external_port']),None,config['external_port'],config_block)
-            # TODO: Set mode http
+            config_block = ConfigBlock()
+            config_block['binds'] = [Config.Bind('0.0.0.0', config['external_port'], None)]
+            frontend = Config.Frontend('relation-{}'.format(config['external_port']), None, config['external_port'], config_block)
             self.proxy_config.frontends.append(frontend)
 
         remote_unit = hookenv.remote_unit().replace('/','-')
@@ -59,14 +71,13 @@ class ProxyHelper():
                 backend = be
         if not backend:
             hookenv.log("Creating backend for {}".format(remote_unit))
-            config_block = {'servers':[Config.Server(name=remote_unit,
-                                                    host=config['internal_host'],
-                                                    port=config['internal_port'],
-                                                    attributes='')]}
-            config_block = defaultdict(list,config_block)
+            config_block = ConfigBlock()
             backend = Config.Backend(name=remote_unit,config_block=config_block)
             self.proxy_config.backends.append(backend)
 
+        # Add server to the backend
+        server = Config.Server(name=remote_unit,host=config['internal_host'], port=config['internal_port'], attributes='')
+        backend.servers().append(server) 
+
         # Render new cfg file
-        Render(self.proxy_config).dumps_to('/etc/haproxy/haproxy.tst') 
-        #raise Exception('debug','hooks') # Causing an error to catch with debug-hooks
+        Render(self.proxy_config).dumps_to('/etc/haproxy/haproxy.cfg') 
