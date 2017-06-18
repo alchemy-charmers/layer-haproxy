@@ -17,7 +17,6 @@ def install_haproxy():
     hookenv.status_set('maintenance','Installing HAProxy')
     fetch.add_source(ph.ppa)
     fetch.install('haproxy')
-    hookenv.log('ph test: {}'.format(ph.proxy_config.globall.configs()))
     set_state('haproxy.installed')
 
 @when('haproxy.installed')

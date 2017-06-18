@@ -9,7 +9,6 @@ from collections import OrderedDict
 
 class ConfigBlock(OrderedDict):
     def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs)
         self['binds'] = []
         self['users'] = []
         self['groups'] = []
@@ -18,6 +17,7 @@ class ConfigBlock(OrderedDict):
         self['acls'] = []
         self['usebackends'] = []
         self['servers'] = []
+        super().__init__(*args,**kwargs)
 
 class ProxyHelper():
     def __init__(self):
@@ -39,7 +39,11 @@ class ProxyHelper():
         # Get the frontend, create if not present on this port
         frontend = None
         for fe in self.proxy_config.frontends:
-            if fe.port == config['external_port']:
+            if fe.port == str(config['external_port']):
+                #config_block = ConfigBlock()
+                #config_block.update(fe.config_block)
+                config_block = ConfigBlock(**fe.config_block)
+                fe.config_block = config_block
                 frontend = fe
                 break
         if not frontend:
@@ -50,6 +54,7 @@ class ProxyHelper():
             self.proxy_config.frontends.append(frontend)
 
         remote_unit = hookenv.remote_unit().replace('/','-')
+        backend_name = config['group_id'] or remote_unit
 
         # Add ACL's to the frontend
         acl = Config.Acl(name=remote_unit,value='path_beg {}'.format(config['urlbase']))
@@ -59,7 +64,7 @@ class ProxyHelper():
 
         # TODO: Allow a 'service' or 'group_id' so multiple units can share a backend for HA not just reverse proxy
         # Add use_backend section to the frontend
-        use_backend = Config.UseBackend(backend_name=remote_unit,
+        use_backend = Config.UseBackend(backend_name=backend_name,
                                         operator='if',
                                         backend_condition=remote_unit,
                                         is_default=False)
@@ -68,12 +73,12 @@ class ProxyHelper():
         # Get the backend, create if not present
         backend = None
         for be in self.proxy_config.backends:
-            if be.name == remote_unit:
+            if be.name == backend_name:
                 backend = be
         if not backend:
-            hookenv.log("Creating backend for {}".format(remote_unit))
+            hookenv.log("Creating backend for {}".format(backend_name))
             config_block = ConfigBlock()
-            backend = Config.Backend(name=remote_unit,config_block=config_block)
+            backend = Config.Backend(name=backend_name,config_block=config_block)
             self.proxy_config.backends.append(backend)
 
         # Add server to the backend
