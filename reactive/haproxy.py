@@ -42,8 +42,9 @@ def set_ready(reverseproxy,*args):
 @when_all('reverseproxy.triggered','reverseproxy.changed')
 def configure_relation(reverseproxy,*args):
     hookenv.status_set('maintenance','Setting up relation')
-    hookenv.log("TODO Apply config: {}".format(reverseproxy.config),"WARNING")
-    ph.process_config(reverseproxy.config)
-    host.service_reload('haproxy.service')
+    hookenv.log("Received config: {}".format(reverseproxy.config),"Info")
+    status = ph.process_config(reverseproxy.config)
+    reverseproxy.set_cfg_status(**status)
+    if status['cfg_good']:
+        host.service_reload('haproxy.service')
     hookenv.status_set('active','')
-    reverseproxy.set_cfg_status(True,"I just told you it was true, I'm not yet operational")

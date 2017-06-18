@@ -33,6 +33,7 @@ class ProxyHelper():
         return self._proxy_config 
 
     def process_config(self,config):
+        # TODO: check for duplicate urlbase or subdomain, if found return w/o editing config
         print(config)
 
         # Get the frontend, create if not present on this port
@@ -81,3 +82,5 @@ class ProxyHelper():
 
         # Render new cfg file
         Render(self.proxy_config).dumps_to('/etc/haproxy/haproxy.cfg') 
+        return({"cfg_good":True,"msg":"configuration applied"})
+
