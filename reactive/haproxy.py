@@ -37,13 +37,15 @@ def configure_haproxy():
 def set_ready(reverseproxy,*args):
     reverseproxy.configure(ports=[])
 
-#TODO: look att host.restart_on_change to only reload if the cfg is changed
 @when_all('reverseproxy.triggered','reverseproxy.changed')
 def configure_relation(reverseproxy,*args):
     hookenv.status_set('maintenance','Setting up relation')
     hookenv.log("Received config: {}".format(reverseproxy.config),"Info")
     status = ph.process_config(reverseproxy.config)
     reverseproxy.set_cfg_status(**status)
-    if status['cfg_good']:
-        host.service_reload('haproxy.service')
     hookenv.status_set('active','')
+
+@when_all('reverseproxy.triggered','reverseproxy.departed')
+def remove_relation(reverseproxy,*args):
+    hookenv.log("Removing config for: {}".format(hookenv.remote_unit()))
+    ph.clean_config(hookenv.remote_unit())

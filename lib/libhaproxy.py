@@ -36,6 +36,9 @@ class ProxyHelper():
         remote_unit = hookenv.remote_unit().replace('/','-')
         backend_name = config['group_id'] or remote_unit
 
+        # Remove any prior configuration as it might have changed
+        self.clean_config(unit=remote_unit,save=False)
+
         # Get the frontend, create if not present
         frontend = self.get_frontend(config['external_port'])
 
@@ -71,7 +74,7 @@ class ProxyHelper():
         backend.servers().append(server) 
 
         # Render new cfg file
-        Render(self.proxy_config).dumps_to('/etc/haproxy/haproxy.cfg') 
+        self.save_config()
         return({"cfg_good":True,"msg":"configuration applied"})
 
     def get_frontend(self,port=None):
@@ -105,3 +108,45 @@ class ProxyHelper():
             self.proxy_config.backends.append(backend)
         return backend
 
+    def clean_config(self,unit,save=True):
+        # HAProxy units can't have / character, replace it so it doesn't fail on a common error of passing in the juju unit
+        unit = unit.replace('/','-')
+
+        # Remove acls and use_backend statements from frontends
+        for fe in self.proxy_config.frontends:
+            fe.config_block['acls'] = [acl for acl in fe.acls() if acl.name != unit]
+            fe.config_block['usebackends'] = [ub for ub in fe.usebackends() if ub.backend_condition != unit]
+        
+        # Remove server statements from backends
+        for be in self.proxy_config.backends:
+            be.config_block['servers'] = [srv for srv in be.servers() if srv.name != unit]
+        
+        # Remove any frontend if it doesn't have both acl and use_backend
+        self.proxy_config.frontends = [fe for fe in self.proxy_config.frontends if len(fe.acls()) > 0 and len(fe.usebackends()) > 0]
+
+        # Remove any backend with no server
+        self.proxy_config.backends = [be for be in self.proxy_config.backends if len(be.servers()) > 0]
+        if save:
+            self.save_config()
+
+    def save_config(self):
+        # This is a hack to deal with config_block being defaultdict thus having unpredictabe render order
+        # Each section with a config_block will have it replaced with my own ConfigBlock class based on OrderedDict
+        has_config = (self.proxy_config.userlists,
+                      self.proxy_config.listens,
+                      self.proxy_config.frontends,
+                      self.proxy_config.backends,
+                      self.proxy_config.defaults
+                      )
+        for section_type in has_config: 
+            for section in section_type:
+                config_block = ConfigBlock(**section.config_block)
+                section.config_block = config_block
+
+        # Convinently this section isn't iterable so it had to be pulled out of the above loop
+        config_block = ConfigBlock(**self.proxy_config.globall.config_block)
+        self.proxy_config.globall.config_block = config_block
+
+        # Render new cfg file
+        Render(self.proxy_config).dumps_to(self.proxy_config_file)
+        host.service_reload('haproxy.service')
