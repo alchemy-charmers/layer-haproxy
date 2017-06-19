@@ -33,7 +33,7 @@ def configure_haproxy():
     set_state('haproxy.configured')
 
 @when_all('reverseproxy.triggered','haproxy.configured')
-@when_not('reverseproxy.ready')
+@when_not('reverseproxy.ready','haproxy.departed')
 def set_ready(reverseproxy,*args):
     reverseproxy.configure(ports=[])
 
