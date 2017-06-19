@@ -33,23 +33,17 @@ class ProxyHelper():
         return self._proxy_config 
 
     def process_config(self,config):
-        # TODO: check for duplicate urlbase or subdomain, if found return w/o editing config
-        print(config)
-
         # Get the frontend, create if not present on this port
         frontend = None
         for fe in self.proxy_config.frontends:
             if fe.port == str(config['external_port']):
-                #config_block = ConfigBlock()
-                #config_block.update(fe.config_block)
                 config_block = ConfigBlock(**fe.config_block)
                 fe.config_block = config_block
                 frontend = fe
                 break
         if not frontend:
             hookenv.log("Creating frontend for port {}".format(config['external_port']),"INFO")
-            config_block = ConfigBlock()
-            config_block['binds'] = [Config.Bind('0.0.0.0', config['external_port'], None)]
+            config_block = ConfigBlock({'binds':[Config.Bind('0.0.0.0', config['external_port'], None)]})
             frontend = Config.Frontend('relation-{}'.format(config['external_port']), None, config['external_port'], config_block)
             self.proxy_config.frontends.append(frontend)
 
@@ -62,7 +56,6 @@ class ProxyHelper():
         acl = Config.Acl(name=remote_unit,value='hdr_beg(host) -i {}'.format(config['subdomain']))
         frontend.acls().append(acl)
 
-        # TODO: Allow a 'service' or 'group_id' so multiple units can share a backend for HA not just reverse proxy
         # Add use_backend section to the frontend
         use_backend = Config.UseBackend(backend_name=backend_name,
                                         operator='if',
@@ -74,15 +67,18 @@ class ProxyHelper():
         backend = None
         for be in self.proxy_config.backends:
             if be.name == backend_name:
+                config_block = ConfigBlock(**be.config_block)
+                be.config_block = config_block
                 backend = be
         if not backend:
             hookenv.log("Creating backend for {}".format(backend_name))
-            config_block = ConfigBlock()
+            cookie_config = ('cookie SERVERID insert indirect nocache','')
+            config_block = ConfigBlock({'configs':[cookie_config]})
             backend = Config.Backend(name=backend_name,config_block=config_block)
             self.proxy_config.backends.append(backend)
 
         # Add server to the backend
-        server = Config.Server(name=remote_unit,host=config['internal_host'], port=config['internal_port'], attributes='')
+        server = Config.Server(name=remote_unit,host=config['internal_host'], port=config['internal_port'], attributes=['cookie {}'.format(remote_unit)])
         backend.servers().append(server) 
 
         # Render new cfg file
