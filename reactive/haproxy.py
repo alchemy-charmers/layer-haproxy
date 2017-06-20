@@ -48,4 +48,4 @@ def configure_relation(reverseproxy,*args):
 @when_all('reverseproxy.triggered','reverseproxy.departed')
 def remove_relation(reverseproxy,*args):
     hookenv.log("Removing config for: {}".format(hookenv.remote_unit()))
-    ph.clean_config(hookenv.remote_unit())
+    ph.clean_config(unit=hookenv.remote_unit(),config=reverseproxy.config)
