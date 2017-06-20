@@ -82,6 +82,10 @@ class ProxyHelper():
             cookie_config = ('cookie SERVERID insert indirect nocache','')
             backend.config_block['configs'].append(cookie_config)
             attributes = ['cookie {}'.format(remote_unit)]
+            if config['group_id']:
+                check_option = ('httpchk GET / HTTP/1.0','')
+                backend.config_block['options'].append(check_option)
+                attributes.append('check')
         else:
             attributes = ['']
         server = Config.Server(name=remote_unit, host=config['internal_host'], port=config['internal_port'], attributes=attributes)
