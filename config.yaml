@@ -3,6 +3,30 @@ options:
     type: string
     default: "1.7"
     description: "Version of HAProxy to install"
+  enable-stats:
+    type: boolean
+    default: True
+    description: "Enable HAProxy stats page"
+  stats-user:
+    type: string
+    default: "admin"
+    description: "Username for accessing stats page"
+  stats-passwd:
+    type: string
+    default: "admin"
+    description: "Password for accessing stats page"
+  stats-url:
+    type: string
+    default: "/ha-stats"
+    description: "URL for accessing stats page"
+  stats-port:
+    type: int
+    default: 9000
+    description: "Port for accessing stats page"
+  stats-local:
+    type: boolean
+    default: True
+    description: "Restrict stats to local IP ranges"
 
   # Examples
   #string-option:

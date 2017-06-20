@@ -13,8 +13,8 @@ class ConfigBlock(OrderedDict):
         self['users'] = []
         self['groups'] = []
         self['options'] = []
-        self['configs'] = []
         self['acls'] = []
+        self['configs'] = []
         self['usebackends'] = []
         self['servers'] = []
         super().__init__(*args,**kwargs)
@@ -109,6 +109,31 @@ class ProxyHelper():
                 return False
         return True
 
+    def enable_stats(self,save=True):
+        # Remove any previous stats
+        self.disable_stats(save=False)
+
+        # Generate new front end for stats
+        user_string = '{}:{}'.format(self.charm_config['stats-user'],self.charm_config['stats-passwd'])
+        config_block = ConfigBlock({'binds':[Config.Bind('0.0.0.0', self.charm_config['stats-port'], None)],
+                                    'configs':[('stats enable',''),
+                                               ('stats auth {}'.format(user_string),''),
+                                               ('stats uri {}'.format(self.charm_config['stats-url']),'')]
+                                    })
+        if self.charm_config['stats-local']:
+            config_block['acls'].append(Config.Acl('local','src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
+            config_block['configs'].append(('block if !local',''))
+        frontend = Config.Frontend('stats', '0.0.0.0', self.charm_config['stats-port'], config_block)
+        self.proxy_config.frontends.append(frontend)
+        if save:
+            self.save_config()
+
+    def disable_stats(self,save=True):
+        # Remove any previous stats frontend
+        self.proxy_config.frontends = [fe for fe in self.proxy_config.frontends if fe.name != 'stats']
+        if save:
+            self.save_config()
+
     def get_frontend(self,port=None):
         port = str(port)
         frontend = None
@@ -156,8 +181,8 @@ class ProxyHelper():
         for be in self.proxy_config.backends:
             be.config_block['servers'] = [srv for srv in be.servers() if srv.name != unit]
         
-        # Remove any frontend if it doesn't have use_backend
-        self.proxy_config.frontends = [fe for fe in self.proxy_config.frontends if len(fe.usebackends()) > 0]
+        # Remove any relation frontend if it doesn't have use_backend
+        self.proxy_config.frontends = [fe for fe in self.proxy_config.frontends if len(fe.usebackends()) > 0 or not fe.name.startswith('relation')]
 
         # Remove any backend with no server
         self.proxy_config.backends = [be for be in self.proxy_config.backends if len(be.servers()) > 0]

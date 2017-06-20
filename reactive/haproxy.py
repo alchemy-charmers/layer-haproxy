@@ -29,6 +29,8 @@ def configure_haproxy():
         line = line.replace('#input(type="imudp" port="514")','input(type="imudp" port="514")')
         print(line,end='') # end statement to avoid inserting new lines at the end of the line
     host.service_restart('rsyslog.service')
+    if ph.charm_config['enable-stats']:
+        ph.enable_stats()
     hookenv.status_set('active','')
     set_state('haproxy.configured')
 
