@@ -1,11 +1,11 @@
 from charmhelpers.core import hookenv, host
 
 from collections import defaultdict
+from collections import OrderedDict
 from pyhaproxy.parse import Parser
 from pyhaproxy.render import Render
 import pyhaproxy.config as Config
-
-from collections import OrderedDict
+import subprocess
 
 class ConfigBlock(OrderedDict):
     def __init__(self,*args,**kwargs):
@@ -214,3 +214,21 @@ class ProxyHelper():
         # Render new cfg file
         Render(self.proxy_config).dumps_to(self.proxy_config_file)
         host.service_reload('haproxy.service')
+
+        # Check the juju ports match the config
+        self.update_ports()
+
+    def update_ports(self):
+        opened_ports = str(subprocess.check_output(["opened-ports"]),'utf-8').split('/tcp\n')
+        hookenv.log("Opened ports {}".format(opened_ports),"DEBUG")
+        for frontend in self.proxy_config.frontends:
+            if frontend.port in opened_ports:
+                hookenv.log("Port already open {}".format(frontend.port),"DEBUG")
+                opened_ports.remove(frontend.port)
+            else:
+                hookenv.log("Opening {}".format(frontend.port),"DEBUG")
+                hookenv.open_port(frontend.port)
+        for port in opened_ports:
+            if port:
+                hookenv.log("Closing port {}".format(port),"DEBUG")
+                hookenv.close_port(port)
