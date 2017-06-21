@@ -16,6 +16,7 @@ ph = ProxyHelper()
 def install_haproxy():
     hookenv.status_set('maintenance','Installing HAProxy')
     fetch.add_source(ph.ppa)
+    fetch.apt_update()
     fetch.install('haproxy')
     set_state('haproxy.installed')
 
