@@ -1,4 +1,4 @@
-from charms.reactive import when, when_all, when_not, set_state
+from charms.reactive import hook, when, when_all, when_not, set_state
 from charmhelpers.core import hookenv, host
 from charmhelpers import fetch
 
@@ -52,3 +52,9 @@ def configure_relation(reverseproxy,*args):
 def remove_relation(reverseproxy,*args):
     hookenv.log("Removing config for: {}".format(hookenv.remote_unit()))
     ph.clean_config(unit=hookenv.remote_unit(),config=reverseproxy.config)
+
+@hook('stop')
+def stop_haproxy():
+    if ph.charm_config['enable-stats']:
+        hookenv.log("Disabling status to free any opened ports","INFO")
+        ph.disable_stats()
