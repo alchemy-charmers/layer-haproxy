@@ -181,6 +181,7 @@ class ProxyHelper():
     def clean_config(self,unit,backend_name,save=True):
         # HAProxy units can't have / character, replace it so it doesn't fail on a common error of passing in the juju unit
         unit = unit.replace('/','-')
+        backend_name = backend_name.replace('/','-')
 
         # Remove acls and use_backend statements from frontends
         for fe in self.proxy_config.frontends:
@@ -283,16 +284,28 @@ class ProxyHelper():
             hookenv.log("Failed letsencrypt registration see /var/log/letsencrypt.log","ERROR")
             return #TODO: Should I error here or is just returning with a log ok?
 
-        # provide cert to haproxy in self.cert_file
+        # create the merged .pem for HAProxy
+        self.merge_letsencrypt_cert()
+
         # Configure the frontend 443
-        #frontend = self.get_frontend(443)
-        #if not len(frontend.binds()[0].attributes):
-        #    frontend.binds()[0].attributes.append('ssl crt {}'.format(self.cert_file))
-        #    self.save_config() 
+        frontend = self.get_frontend(443)
+        if not len(frontend.binds()[0].attributes):
+            frontend.binds()[0].attributes.append('ssl crt {}'.format(self.cert_file))
+        if first_run:
+            frontend.acls().append(acl)
+            frontend.usebackends().append(use_backed)
+            self.save_config() 
 
     def disable_letsencrypt(self,save=True):
         # Remove any previous config 
         self.clean_config(unit='letsencrypt',backend_name='letsencrypt-backend',save=save)
          
-    def update_cert(self):
-        pass
+    def merge_letsencrypt_cert(self):
+        letsencrypt_live_folder = '/etc/letsencrypt/live/{}/'.format(self.domain_name)
+        with open(self.cert_file,'wb') as outFile:
+            with open(letsencrypt_live_folder+'fullchain.pem','rb') as chainFile:
+                outFile.write(chainFile.read())
+            with open(letsencrypt_live_folder+'privkey.pem','rb') as privFile:
+                outFile.write(privFile.read())
+
+
