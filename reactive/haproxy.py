@@ -4,6 +4,9 @@ from charmhelpers import fetch
 
 import subprocess
 import fileinput
+import os
+import errno
+
 try:
     from libhaproxy import ProxyHelper
 except:
@@ -24,6 +27,11 @@ def install_haproxy():
 @when_not('haproxy.configured')
 def configure_haproxy():
     hookenv.status_set('maintenance','Configuring HAProxy')
+    try:
+        os.makedirs(ph.ssl_path)
+    except OSError as exception:
+        if exception.errno != errno.EEXIST:
+            raise
     # Enable udp for rsyslog
     for line in fileinput.input('/etc/rsyslog.conf', inplace=True):
         line = line.replace('#module(load="imudp")','module(load="imudp")')
@@ -32,6 +40,8 @@ def configure_haproxy():
     host.service_restart('rsyslog.service')
     if ph.charm_config['enable-stats']:
         ph.enable_stats()
+    if ph.charm_config['enable-letsencrypt']:
+        ph.enable_letsencrypt()
     hookenv.status_set('active','')
     set_state('haproxy.configured')
 
@@ -58,3 +68,5 @@ def stop_haproxy():
     if ph.charm_config['enable-stats']:
         hookenv.log("Disabling status to free any opened ports","INFO")
         ph.disable_stats()
+        hookenv.log("Disabling letsencrypt to free any opened ports","INFO")
+        ph.disable_letsencrypt()

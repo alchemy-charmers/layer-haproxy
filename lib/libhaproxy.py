@@ -1,10 +1,13 @@
 from charmhelpers.core import hookenv, host
 
+from charms import layer
 from collections import defaultdict
 from collections import OrderedDict
 from pyhaproxy.parse import Parser
 from pyhaproxy.render import Render
+
 import pyhaproxy.config as Config
+import reactive.letsencrypt as letsencrypt
 import subprocess
 
 class ConfigBlock(OrderedDict):
@@ -22,9 +25,13 @@ class ConfigBlock(OrderedDict):
 class ProxyHelper():
     def __init__(self):
         self.charm_config = hookenv.config()
+        self.letsencrypt_config = layer.options('letsencrypt')
         self.ppa = "ppa:vbernat/haproxy-{}".format(self.charm_config['version']) 
         self.proxy_config_file = "/etc/haproxy/haproxy.cfg"
         self._proxy_config = None
+        self.domain_name = self.charm_config['letsencrypt-domains'].split(',')[0]
+        self.ssl_path = '/etc/haproxy/ssl/'
+        self.cert_file = self.ssl_path+self.domain_name+'.pem'
 
     @property
     def proxy_config(self):
@@ -37,7 +44,7 @@ class ProxyHelper():
         backend_name = config['group_id'] or remote_unit
 
         # Remove any prior configuration as it might have changed, do not write cfg file we still have edits to make
-        self.clean_config(unit=remote_unit,config=config,save=False)
+        self.clean_config(unit=remote_unit,backend_name=backend_name,save=False)
 
         # Get the frontend, create if not present
         frontend = self.get_frontend(config['external_port'])
@@ -171,10 +178,9 @@ class ProxyHelper():
             self.proxy_config.backends.append(backend)
         return backend
 
-    def clean_config(self,unit,config,save=True):
+    def clean_config(self,unit,backend_name,save=True):
         # HAProxy units can't have / character, replace it so it doesn't fail on a common error of passing in the juju unit
         unit = unit.replace('/','-')
-        backend_name = config['group_id'] or unit
 
         # Remove acls and use_backend statements from frontends
         for fe in self.proxy_config.frontends:
@@ -232,3 +238,61 @@ class ProxyHelper():
             if port:
                 hookenv.log("Closing port {}".format(port),"DEBUG")
                 hookenv.close_port(port)
+
+    def enable_letsencrypt(self):
+        hookenv.log("Enabling letsencrypt","DEBUG")
+        unit_name = 'letsencrypt'
+        backend_name = 'letsencrypt-backend'
+
+        frontend = self.get_frontend(80)
+        if not self.available_for_http(frontend):
+            hookenv.log("Port 80 not available for http use by letsencrypt","ERROR")
+            return #TODO: Should I error here or is just returning with a log ok?
+
+        # Only configure the rest if we haven't already done so to avoid checking every change for already existing
+        first_run = True
+        for acl in frontend.acls():
+            if acl.name == unit_name:
+               first_run = False 
+        if first_run:
+            # Add ACL to the frontend
+            acl = Config.Acl(name=unit_name, value='path_beg -i /.well-known/acme-challenge/')
+            frontend.acls().append(acl)
+            # Add usebackend 
+            use_backend = Config.UseBackend(backend_name=backend_name,
+                                            operator='if',
+                                            backend_condition=unit_name,
+                                            is_default=False)
+            frontend.usebackends().append(use_backend)
+
+            # Get the backend, create if not present
+            backend = self.get_backend(backend_name)
+
+            # Add server to the backend
+            attributes = ['']
+            server = Config.Server(name=unit_name, host='127.0.0.1', port=self.letsencrypt_config['port'], attributes=attributes)
+            backend.servers().append(server) 
+
+            # Render new cfg file
+            self.save_config()
+
+        # Call the register function from the letsencrypt layer
+        hookenv.log("Letsencrypt port: {}".format(self.letsencrypt_config['port']),'DEBUG')
+        hookenv.log("Letsencrypt domains: {}".format(self.charm_config['letsencrypt-domains']),'DEBUG')
+        if letsencrypt.register_domains() > 0:
+            hookenv.log("Failed letsencrypt registration see /var/log/letsencrypt.log","ERROR")
+            return #TODO: Should I error here or is just returning with a log ok?
+
+        # provide cert to haproxy in self.cert_file
+        # Configure the frontend 443
+        #frontend = self.get_frontend(443)
+        #if not len(frontend.binds()[0].attributes):
+        #    frontend.binds()[0].attributes.append('ssl crt {}'.format(self.cert_file))
+        #    self.save_config() 
+
+    def disable_letsencrypt(self,save=True):
+        # Remove any previous config 
+        self.clean_config(unit='letsencrypt',backend_name='letsencrypt-backend',save=save)
+         
+    def update_cert(self):
+        pass
