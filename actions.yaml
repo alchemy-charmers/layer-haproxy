@@ -1,4 +1,4 @@
-renew_cert:
+renew-cert:
   description: "Renew the letsencrypt cert"
-renew_upnp:
+renew-upnp:
   description: "Renew upnp leases"
