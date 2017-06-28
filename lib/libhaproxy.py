@@ -316,4 +316,11 @@ class ProxyHelper():
 
     def renew_upnp(self):
         hookenv.log("Renewing upnp port requests","INFO")
+        # check that open ports is accurate
         self.update_ports()
+        # send upnp for ports even if they were already open
+        opened_ports = str(subprocess.check_output(["opened-ports"]),'utf-8').split('/tcp\n')
+        for port in opened_ports:
+            hookenv.log("Opening port {}".format(frontend.port),"INFO")
+            hookenv.open_port(frontend.port)
+
