@@ -293,7 +293,7 @@ class ProxyHelper():
             frontend.binds()[0].attributes.append('ssl crt {}'.format(self.cert_file))
         if first_run:
             frontend.acls().append(acl)
-            frontend.usebackends().append(use_backed)
+            frontend.usebackends().append(use_backend)
             self.save_config() 
 
     def disable_letsencrypt(self,save=True):
