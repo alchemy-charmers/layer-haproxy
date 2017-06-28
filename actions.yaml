@@ -1,0 +1,4 @@
+renew_cert:
+  description: "Renew the letsencrypt cert"
+renew_upnp:
+  description: "Renew upnp leases"

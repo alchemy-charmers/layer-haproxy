@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+
+import sys
+sys.path.append('lib')
+
+from libhaproxy import ProxyHelper
+
+ph = ProxyHelper()
+ph.renew_cert()
+

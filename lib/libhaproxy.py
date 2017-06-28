@@ -308,4 +308,12 @@ class ProxyHelper():
             with open(letsencrypt_live_folder+'privkey.pem','rb') as privFile:
                 outFile.write(privFile.read())
 
+    def renew_cert(self):
+        hookenv.log("Renewing cert","INFO")
+        # Calling a full disable/enable to clean and re-write the config to catch domain changes in the charm config
+        self.disable_letsencrypt()
+        self.enable_letsencrypt()
 
+    def renew_upnp(self):
+        hookenv.log("Renewing upnp port requests","INFO")
+        self.update_ports()
