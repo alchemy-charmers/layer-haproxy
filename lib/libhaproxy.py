@@ -322,5 +322,5 @@ class ProxyHelper():
         opened_ports = str(subprocess.check_output(["opened-ports"]),'utf-8').split('/tcp\n')
         for port in opened_ports:
             hookenv.log("Opening port {}".format(port),"INFO")
-            hookenv.open_port(frontend.port)
+            hookenv.open_port(port)
 
