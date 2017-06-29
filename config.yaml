@@ -27,6 +27,15 @@ options:
     type: boolean
     default: True
     description: "Restrict stats to local IP ranges"
+  cert-renew-interval:
+    type: string
+    default: "@daily"
+    description: "Cron interval for letsencrypt renew, if in use"
+  upnp-renew-interval:
+    type: string
+    default: '@hourly'
+    description: "Cron interval to rewnew upnp, if in use"
+
 
   # Examples
   #string-option:

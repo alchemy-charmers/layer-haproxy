@@ -1,4 +1,9 @@
 renew-cert:
   description: "Renew the letsencrypt cert"
+  params:
+    full:
+      type: boolean
+      description: "Perform a full rewnew, including updating proxy for possible domain name changes"
+      default: True
 renew-upnp:
   description: "Renew upnp leases"

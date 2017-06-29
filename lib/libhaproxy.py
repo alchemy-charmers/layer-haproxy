@@ -5,6 +5,7 @@ from collections import defaultdict
 from collections import OrderedDict
 from pyhaproxy.parse import Parser
 from pyhaproxy.render import Render
+from crontab import CronTab
 
 import pyhaproxy.config as Config
 import reactive.letsencrypt as letsencrypt
@@ -296,9 +297,13 @@ class ProxyHelper():
             frontend.usebackends().append(use_backend)
             self.save_config() 
 
+        # Add cron for renew
+        self.add_cert_cron()
+
     def disable_letsencrypt(self,save=True):
         # Remove any previous config 
         self.clean_config(unit='letsencrypt',backend_name='letsencrypt-backend',save=save)
+        self.remove_cert_cron()
          
     def merge_letsencrypt_cert(self):
         letsencrypt_live_folder = '/etc/letsencrypt/live/{}/'.format(self.domain_name)
@@ -308,11 +313,18 @@ class ProxyHelper():
             with open(letsencrypt_live_folder+'privkey.pem','rb') as privFile:
                 outFile.write(privFile.read())
 
-    def renew_cert(self):
+    def renew_cert(self,full=True):
         hookenv.log("Renewing cert","INFO")
-        # Calling a full disable/enable to clean and re-write the config to catch domain changes in the charm config
-        self.disable_letsencrypt()
-        self.enable_letsencrypt()
+        if full:
+            # Calling a full disable/enable to clean and re-write the config to catch domain changes in the charm config
+            hookenv.log("Performing full domain register","INFO")
+            self.disable_letsencrypt()
+            self.enable_letsencrypt()
+        else:
+            hookenv.log("Performing renew only","INFO")
+            letsencrypt.renew()
+            # create the merged .pem for HAProxy
+            self.merge_letsencrypt_cert()
 
     def renew_upnp(self):
         hookenv.log("Renewing upnp port requests","INFO")
@@ -325,3 +337,38 @@ class ProxyHelper():
             hookenv.log("Opening port {}".format(port),"INFO")
             hookenv.open_port(port)
 
+    def add_cron(self,action,interval):
+        ''' action: name of the action to run
+            interval: cron interval to set '''
+        root_cron = CronTab(user='root')
+        unit = hookenv.local_unit()
+        directory = hookenv.charm_dir()
+        action_path = directory+'/actions/{}'.format(action)
+        command = "juju-run {unit} {action}".format(unit=unit,action=action_path)
+        job = root_cron.new(command=command,comment="Charm cron for {}".format(action))
+        job.setall(interval)
+        root_cron.write()
+        hookenv.log("Cron added: {}".format(action),"INFO")
+
+    def remove_cron(self,action):
+        root_cron = CronTab(user='root')
+        try:
+            job = next(root_cron.find_comment("Charm cron for {}".format(action)))
+            root_cron.remove(job)
+            root_cron.write()
+        except StopIteration:
+            hookenv.log("Cron was not present to remove","WARN")
+            pass
+        hookenv.log("Cron removed: {}".format(action),"INFO")
+
+    def add_cert_cron(self):
+        self.add_cron('renew_cert',self.charm_config['cert-renew-interval'])
+
+    def remove_cert_cron(self):
+        self.remove_cron('renew_cert')
+
+    def add_upnp_cron(self):
+        self.add_cron('renew-upnp',self.charm_config['upnp-renew-interval'])
+
+    def remove_upnp_cron(self):
+        self.remove_cron('renew-upnp',self.charm_config['upnp-renew-interval'])

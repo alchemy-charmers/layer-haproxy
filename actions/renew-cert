@@ -7,6 +7,12 @@ sys.path.append(hookenv.charm_dir()+'/lib')
 
 from libhaproxy import ProxyHelper
 
+# This is an ugly hack to allow juju-run to call from cron
+try:
+    full = hookenv.action_get('full')
+except:
+    full = 'False'
+
 ph = ProxyHelper()
-ph.renew_cert()
+ph.renew_cert(full=full)
 

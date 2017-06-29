@@ -42,6 +42,8 @@ def configure_haproxy():
         ph.enable_stats()
     if ph.charm_config['enable-letsencrypt']:
         ph.enable_letsencrypt()
+    if ph.charm_config['upnp-renew-interval']:
+        ph.add_upnp_cron()
     hookenv.status_set('active','')
     set_state('haproxy.configured')
 
