@@ -362,10 +362,10 @@ class ProxyHelper():
         hookenv.log("Cron removed: {}".format(action),"INFO")
 
     def add_cert_cron(self):
-        self.add_cron('renew_cert',self.charm_config['cert-renew-interval'])
+        self.add_cron('renew-cert',self.charm_config['cert-renew-interval'])
 
     def remove_cert_cron(self):
-        self.remove_cron('renew_cert')
+        self.remove_cron('renew-cert')
 
     def add_upnp_cron(self):
         self.add_cron('renew-upnp',self.charm_config['upnp-renew-interval'])
