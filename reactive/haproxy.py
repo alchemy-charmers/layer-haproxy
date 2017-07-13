@@ -1,4 +1,4 @@
-from charms.reactive import hook, when, when_all, when_not, set_state
+from charms.reactive import hook, when, when_all, when_any, when_not, set_state, remove_state
 from charmhelpers.core import hookenv, host
 from charmhelpers import fetch
 
@@ -66,6 +66,25 @@ def remove_relation(reverseproxy,*args):
     # This has to match what happens in the process config and should probably be abstrated away at some point
     backend_name = reverseproxy.config['group_id'] or hookenv.remote_unit()
     ph.clean_config(unit=hookenv.remote_unit(),backend_name=backend_name)
+
+@when('config.changed.version')
+def version_changed():
+    hookenv.log('Version change will not affect running units','WARNING') 
+    hookenv.status_set('active',"version change to {} not applied, redeploy unit for version change".format(ph.charm_config['version']))
+
+@when_any('config.changed.enable-stats',
+          'config.changed.stats-user',
+          'config.changed.stats-passwd',
+          'config.changed.stats-url',
+          'config.changed.stats-port',
+          'config.changed.stats-local')
+def stats_changed():
+    if ph.charm_config['enable-stats']:
+        hookenv.log('Enabling stats for config change')
+        ph.enable_stats()
+    else:
+        hookenv.log('Disabling stats for config change')
+        ph.disable_stats()
 
 @hook('stop')
 def stop_haproxy():

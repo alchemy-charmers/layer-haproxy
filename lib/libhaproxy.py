@@ -104,6 +104,8 @@ class ProxyHelper():
         return({"cfg_good":True,"msg":"configuration applied"})
 
     def available_for_http(self,frontend,config=None):
+        if frontend.name == "stats":
+            return False
         for config in frontend.configs():
             if "mode tcp" in config:
                 return False
@@ -124,6 +126,11 @@ class ProxyHelper():
     def enable_stats(self,save=True):
         # Remove any previous stats
         self.disable_stats(save=False)
+
+        # Check that no frontend exists with conflicting port
+        if self.get_frontend(port=self.charm_config['stats-port'],create=False):
+            hookenv.log("Stats port {} already in use".format(self.charm_config['stats-port']),'ERROR')
+            hookenv.status_set('error','Status port in use')
 
         # Generate new front end for stats
         user_string = '{}:{}'.format(self.charm_config['stats-user'],self.charm_config['stats-passwd'])
@@ -146,7 +153,7 @@ class ProxyHelper():
         if save:
             self.save_config()
 
-    def get_frontend(self,port=None):
+    def get_frontend(self,port=None,create=True):
         port = str(port)
         frontend = None
         for fe in self.proxy_config.frontends:
@@ -158,7 +165,7 @@ class ProxyHelper():
                 fe.config_block = config_block
                 frontend = fe
                 break
-        if not frontend:
+        if frontend is None and create:
             hookenv.log("Creating frontend for port {}".format(port),"INFO")
             config_block = ConfigBlock({'binds':[Config.Bind('0.0.0.0', port, None)]})
             frontend = Config.Frontend('relation-{}'.format(port), '0.0.0.0', port, config_block)
