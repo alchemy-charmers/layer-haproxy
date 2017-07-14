@@ -130,7 +130,9 @@ class ProxyHelper():
         # Check that no frontend exists with conflicting port
         if self.get_frontend(port=self.charm_config['stats-port'],create=False):
             hookenv.log("Stats port {} already in use".format(self.charm_config['stats-port']),'ERROR')
-            hookenv.status_set('error','Status port in use')
+            if save:
+                self.save_config()
+            return
 
         # Generate new front end for stats
         user_string = '{}:{}'.format(self.charm_config['stats-user'],self.charm_config['stats-passwd'])
