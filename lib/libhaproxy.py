@@ -346,6 +346,17 @@ class ProxyHelper():
             hookenv.log("Opening port {}".format(port),"INFO")
             hookenv.open_port(port)
 
+    def release_upnp(self):
+        hookenv.log("Releaseing all upnp port requests","INFO")
+        # check that open ports is accurate
+        self.update_ports()
+        # send upnp for ports even if they were already open
+        opened_ports = str(subprocess.check_output(["opened-ports"]),'utf-8').split('/tcp\n')
+        opened_ports.remove('')
+        for port in opened_ports:
+            hookenv.log("Closing port {}".format(port),"INFO")
+            hookenv.close_port(port)
+
     def add_cron(self,action,interval):
         ''' action: name of the action to run
             interval: cron interval to set '''
@@ -380,4 +391,4 @@ class ProxyHelper():
         self.add_cron('renew-upnp',self.charm_config['upnp-renew-interval'])
 
     def remove_upnp_cron(self):
-        self.remove_cron('renew-upnp',self.charm_config['upnp-renew-interval'])
+        self.remove_cron('renew-upnp')
