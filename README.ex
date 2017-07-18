@@ -13,10 +13,10 @@ only know it's used when the admins report it :-)
 
 To deploy:
 
-    juju deploy haproxy
+    juju deploy cs:~chris.sanders/haproxy
 
 You will most likely want to use a bundle to set options during deployment. The
-primary use case for this charm is to allow other chamrs that implemnt the
+primary use case for this charm is to allow other chamrs that implement the
 [reverse proxy][interface-reverseproxy] interface to automatically register for
 reverse proxy. This charm will allow both http and tcp reverse proxy's to be
 requested from other charms. Addationally, for http reverse proxy Letsencrypt is
@@ -28,7 +28,7 @@ by default, see the configuration options to enable them.
 ## Known Limitations and Issues
 
 This charm is under development, several other usecases/features are still under
-consideration. Merge requests are certinaly apprecaited, some examples of
+consideration. Merge requests are certinaly appreciated, some examples of
 current limitations include.
 
  * No way to configure reverseproxy for non-charmed services
@@ -57,9 +57,6 @@ options that are worth highlighting.
 
 # Contact Information
 
-Though this will be listed in the charm store itself don't assume a user will
-know that, so include that information here:
-
 ## Upstream Project Information
 
   - Code: https://github.com/chris-sanders/layer-haproxy 
@@ -67,6 +64,5 @@ know that, so include that information here:
   - Contact information: sanders.chris@gmail.com
 
 [haproxy]: http://www.haproxy.org/
-[interface-reverseproxy]:
-https://github.com/chris-sanders/interface-reverseproxy
+[interface-reverseproxy]: https://github.com/chris-sanders/interface-reverseproxy
 
