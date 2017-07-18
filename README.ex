@@ -17,7 +17,7 @@ To deploy:
 
 You will most likely want to use a bundle to set options during deployment. The
 primary use case for this charm is to allow other chamrs that implement the
-[reverse-proxy][interface-reverseproxy] interface to automatically register for
+[reverse proxy][interface-reverseproxy] interface to automatically register for
 reverse proxy. This charm will allow both http and tcp reverse proxy's to be
 requested from other charms. Addationally, for http reverse proxy Letsencrypt is
 provided to allow HAProxy to automatically register for a certificate and
