@@ -31,7 +31,6 @@ This charm is under development, several other usecases/features are still under
 consideration. Merge requests are certinaly appreciated, some examples of
 current limitations include.
 
- * No way to configure reverseproxy for non-charmed services
  * No HA Failover or Scaleout usage currently implented
  * Can not restrict the ports other charms request
  * Unit/Functional testing is not yet implemented
@@ -53,7 +52,8 @@ options that are worth highlighting.
    Running UPNP in production is not recommended practice.
  - hostname will allow you to customize the hostname of HAProxy, be aware that
    doing this can cause multiple hosts to have the same hostname if you scale
-   out the number of units.
+   out the number of units. Setting hostname to "$UNIT" will set the hostname to
+   the juju unit id.
 
 # Contact Information
 
