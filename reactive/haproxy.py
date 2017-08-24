@@ -64,7 +64,10 @@ def configure_relation(reverseproxy,*args):
 def remove_relation(reverseproxy,*args):
     hookenv.log("Removing config for: {}".format(hookenv.remote_unit()))
     # This has to match what happens in the process config and should probably be abstrated away at some point
-    backend_name = reverseproxy.config['group_id'] or hookenv.remote_unit()
+    try:
+        backend_name = reverseproxy.config['group_id']
+    except TypeError:
+        backend_name = hookenv.remote_unit()
     ph.clean_config(unit=hookenv.remote_unit(),backend_name=backend_name)
 
 @when('config.changed.version')
