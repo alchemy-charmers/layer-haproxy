@@ -1,4 +1,4 @@
-from charms.reactive import hook, when, when_all, when_any, when_not, set_state, remove_state
+from charms.reactive import hook, when, when_all, when_any, when_not, set_state
 from charmhelpers.core import hookenv, host
 from charmhelpers import fetch
 
@@ -10,23 +10,25 @@ import errno
 try:
     from libhaproxy import ProxyHelper
 except:
-    subprocess.check_call('2to3-3.5 -w /usr/local/lib/python3.5/dist-packages/pyhaproxy',shell=True)
+    subprocess.check_call('2to3-3.5 -w /usr/local/lib/python3.5/dist-packages/pyhaproxy', shell=True)
     from libhaproxy import ProxyHelper
 
 ph = ProxyHelper()
 
+
 @when_not('haproxy.installed')
 def install_haproxy():
-    hookenv.status_set('maintenance','Installing HAProxy')
+    hookenv.status_set('maintenance', 'Installing HAProxy')
     fetch.add_source(ph.ppa)
     fetch.apt_update()
     fetch.install('haproxy')
     set_state('haproxy.installed')
 
+
 @when('haproxy.installed')
 @when_not('haproxy.configured')
 def configure_haproxy():
-    hookenv.status_set('maintenance','Configuring HAProxy')
+    hookenv.status_set('maintenance', 'Configuring HAProxy')
     try:
         os.makedirs(ph.ssl_path)
     except OSError as exception:
@@ -34,9 +36,9 @@ def configure_haproxy():
             raise
     # Enable udp for rsyslog
     for line in fileinput.input('/etc/rsyslog.conf', inplace=True):
-        line = line.replace('#module(load="imudp")','module(load="imudp")')
-        line = line.replace('#input(type="imudp" port="514")','input(type="imudp" port="514")')
-        print(line,end='') # end statement to avoid inserting new lines at the end of the line
+        line = line.replace('#module(load="imudp")', 'module(load="imudp")')
+        line = line.replace('#input(type="imudp" port="514")', 'input(type="imudp" port="514")')
+        print(line, end='')  # end statement to avoid inserting new lines at the end of the line
     host.service_restart('rsyslog.service')
     if ph.charm_config['enable-stats']:
         ph.enable_stats()
@@ -44,38 +46,38 @@ def configure_haproxy():
         ph.enable_letsencrypt()
     if ph.charm_config['enable-upnp']:
         ph.add_upnp_cron()
-    hookenv.status_set('active','')
+    hookenv.status_set('active', '')
     set_state('haproxy.configured')
 
-@when_all('reverseproxy.triggered','haproxy.configured')
-@when_not('reverseproxy.ready','reverseproxy.departed')
-def set_ready(reverseproxy,*args):
-    reverseproxy.configure()
 
-@when_all('reverseproxy.triggered','reverseproxy.changed')
-def configure_relation(reverseproxy,*args):
-    hookenv.status_set('maintenance','Setting up relation')
-    hookenv.log("Received config: {}".format(reverseproxy.config),"Info")
+@when_all('reverseproxy.triggered', 'reverseproxy.changed')
+def configure_relation(reverseproxy, *args):
+    hookenv.status_set('maintenance', 'Setting up relation')
+    hookenv.log("Received config: {}".format(reverseproxy.config), "Info")
     status = ph.process_config(reverseproxy.config)
     reverseproxy.set_cfg_status(**status)
-    hookenv.status_set('active','')
+    hookenv.status_set('active', '')
 
-@when_all('reverseproxy.triggered','reverseproxy.departed')
-def remove_relation(reverseproxy,*args):
+
+@when_all('reverseproxy.triggered', 'reverseproxy.departed')
+def remove_relation(reverseproxy, *args):
     hookenv.log("Removing config for: {}".format(hookenv.remote_unit()))
     # This has to match what happens in the process config and should probably be abstrated away at some point
     try:
         backend_name = reverseproxy.config['group_id']
     except TypeError:
         backend_name = hookenv.remote_unit()
-    ph.clean_config(unit=hookenv.remote_unit(),backend_name=backend_name)
+    ph.clean_config(unit=hookenv.remote_unit(), backend_name=backend_name)
+
 
 @when('config.changed.version')
 def version_changed():
     if hookenv.hook_name() == "install":
         return
-    hookenv.log('Version change will not affect running units','WARNING') 
-    hookenv.status_set('active',"version change to {} not applied, redeploy unit for version change".format(ph.charm_config['version']))
+    hookenv.log('Version change will not affect running units', 'WARNING') 
+    hookenv.status_set('active', "version change to {} not applied, redeploy"
+                       "unit for version change".format(ph.charm_config['version']))
+
 
 @when_any('config.changed.enable-stats',
           'config.changed.stats-user',
@@ -92,6 +94,7 @@ def stats_changed():
     else:
         hookenv.log('Disabling stats for config change')
         ph.disable_stats()
+
 
 @when_any('config.changed.enable-upnp')
 def upnp_changed():
@@ -118,6 +121,7 @@ def upnp_interval_changed():
     if ph.charm_config['enable-upnp']:
         ph.add_upnp_cron()
 
+
 @when_any('config.changed.enable-letsencrypt',
           'config.changed.letsencrypt-domains',
           'config.changed.letsencrypt-email')
@@ -128,6 +132,7 @@ def letsencrypt_config_changed():
     if ph.charm_config['enable-letsencrypt']:
         ph.enable_letsencrypt()
 
+
 @when('config.changed.cert-renew-interval')
 def cert_interval_changed():
     if hookenv.hook_name() == "install":
@@ -136,10 +141,11 @@ def cert_interval_changed():
     if ph.charm_config['enable-letsencrypt']:
         ph.add_cert_cron()
 
+
 @hook('stop')
 def stop_haproxy():
     if ph.charm_config['enable-stats']:
-        hookenv.log("Disabling status to free any opened ports","INFO")
+        hookenv.log("Disabling status to free any opened ports", "INFO")
         ph.disable_stats()
-        hookenv.log("Disabling letsencrypt to free any opened ports","INFO")
+        hookenv.log("Disabling letsencrypt to free any opened ports", "INFO")
         ph.disable_letsencrypt()
