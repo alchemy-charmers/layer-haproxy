@@ -40,12 +40,16 @@ class ProxyHelper():
             self._proxy_config = Parser(self.proxy_config_file).build_configuration()
         return self._proxy_config 
 
-    def process_config(self,config):
-        remote_unit = hookenv.remote_unit().replace('/','-')
+    def get_config_names(self, config):
+        remote_unit = hookenv.remote_unit().replace('/', '-')
         backend_name = config['group_id'] or remote_unit
+        return remote_unit, backend_name
+
+    def process_config(self, config):
+        remote_unit, backend_name = self.get_config_names(config)
 
         # Remove any prior configuration as it might have changed, do not write cfg file we still have edits to make
-        self.clean_config(unit=remote_unit,backend_name=backend_name,save=False)
+        self.clean_config(unit=remote_unit, backend_name=backend_name, save=False)
 
         # Get the frontend, create if not present
         frontend = self.get_frontend(config['external_port'])
@@ -192,6 +196,7 @@ class ProxyHelper():
         # HAProxy units can't have / character, replace it so it doesn't fail on a common error of passing in the juju unit
         unit = unit.replace('/','-')
         backend_name = backend_name.replace('/','-')
+        hookenv.log("Cleaning unit,backend: {},{}".format(unit, backend_name), 'DEBUG')
 
         # Remove acls and use_backend statements from frontends
         for fe in self.proxy_config.frontends:
