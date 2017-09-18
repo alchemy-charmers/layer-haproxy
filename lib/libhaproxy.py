@@ -1,7 +1,6 @@
 from charmhelpers.core import hookenv, host
 
 from charms import layer
-from collections import defaultdict
 from collections import OrderedDict
 from pyhaproxy.parse import Parser
 from pyhaproxy.render import Render
@@ -11,8 +10,9 @@ import pyhaproxy.config as Config
 import reactive.letsencrypt as letsencrypt
 import subprocess
 
+
 class ConfigBlock(OrderedDict):
-    def __init__(self,*args,**kwargs):
+    def __init__(self, *args, **kwargs):
         self['binds'] = []
         self['users'] = []
         self['groups'] = []
@@ -21,7 +21,8 @@ class ConfigBlock(OrderedDict):
         self['configs'] = []
         self['usebackends'] = []
         self['servers'] = []
-        super().__init__(*args,**kwargs)
+        super().__init__(*args, **kwargs)
+
 
 class ProxyHelper():
     def __init__(self):
@@ -32,7 +33,7 @@ class ProxyHelper():
         self._proxy_config = None
         self.domain_name = self.charm_config['letsencrypt-domains'].split(',')[0]
         self.ssl_path = '/etc/haproxy/ssl/'
-        self.cert_file = self.ssl_path+self.domain_name+'.pem'
+        self.cert_file = self.ssl_path + self.domain_name + '.pem'
 
     @property
     def proxy_config(self):
@@ -54,9 +55,9 @@ class ProxyHelper():
         # Get the frontend, create if not present
         frontend = self.get_frontend(config['external_port'])
 
-        if config['mode'] =='http':
+        if config['mode'] == 'http':
             if not self.available_for_http(frontend):
-                return({"cfg_good":False,"msg":"Port not available for http routing"})
+                return({"cfg_good": False, "msg": "Port not available for http routing"})
                 
             # Add ACL's to the frontend
             if config['urlbase']:
@@ -73,10 +74,10 @@ class ProxyHelper():
                                             is_default=False)
             frontend.usebackends().append(use_backend)
         if config['mode'] == 'tcp':
-            if not self.available_for_tcp(frontend,backend_name):
-                return({"cfg_good":False,"msg":"Frontend already in use can not setup tcp mode"})
+            if not self.available_for_tcp(frontend, backend_name):
+                return({"cfg_good": False, "msg": "Frontend already in use can not setup tcp mode"})
 
-            mode_config = ("mode tcp","")
+            mode_config = ("mode tcp", "")
             if mode_config not in frontend.configs():
                 frontend.configs().append(mode_config)
             
@@ -91,11 +92,11 @@ class ProxyHelper():
 
         # Add server to the backend
         if config['mode'] == 'http':
-            cookie_config = ('cookie SERVERID insert indirect nocache','')
+            cookie_config = ('cookie SERVERID insert indirect nocache', '')
             backend.config_block['configs'].append(cookie_config)
             attributes = ['cookie {}'.format(remote_unit)]
             if config['group_id']:
-                check_option = ('httpchk GET / HTTP/1.0','')
+                check_option = ('httpchk GET / HTTP/1.0', '')
                 backend.config_block['options'].append(check_option)
                 attributes.append('check')
         else:
@@ -105,9 +106,9 @@ class ProxyHelper():
 
         # Render new cfg file
         self.save_config()
-        return({"cfg_good":True,"msg":"configuration applied"})
+        return({"cfg_good": True, "msg": "configuration applied"})
 
-    def available_for_http(self,frontend,config=None):
+    def available_for_http(self, frontend, config=None):
         if frontend.name == "stats":
             return False
         for config in frontend.configs():
@@ -115,7 +116,7 @@ class ProxyHelper():
                 return False
         return True
 
-    def available_for_tcp(self,frontend,backend_name):
+    def available_for_tcp(self, frontend, backend_name):
         if len(frontend.acls()):
             return False
         if len(frontend.usebackends()):
@@ -127,58 +128,58 @@ class ProxyHelper():
                 return False
         return True
 
-    def enable_stats(self,save=True):
+    def enable_stats(self, save=True):
         # Remove any previous stats
         self.disable_stats(save=False)
 
         # Check that no frontend exists with conflicting port
-        if self.get_frontend(port=self.charm_config['stats-port'],create=False):
-            hookenv.log("Stats port {} already in use".format(self.charm_config['stats-port']),'ERROR')
+        if self.get_frontend(port=self.charm_config['stats-port'], create=False):
+            hookenv.log("Stats port {} already in use".format(self.charm_config['stats-port']), 'ERROR')
             if save:
                 self.save_config()
             return
 
         # Generate new front end for stats
-        user_string = '{}:{}'.format(self.charm_config['stats-user'],self.charm_config['stats-passwd'])
-        config_block = ConfigBlock({'binds':[Config.Bind('0.0.0.0', self.charm_config['stats-port'], None)],
-                                    'configs':[('stats enable',''),
-                                               ('stats auth {}'.format(user_string),''),
-                                               ('stats uri {}'.format(self.charm_config['stats-url']),'')]
+        user_string = '{}:{}'.format(self.charm_config['stats-user'], self.charm_config['stats-passwd'])
+        config_block = ConfigBlock({'binds': [Config.Bind('0.0.0.0', self.charm_config['stats-port'], None)],
+                                    'configs': [('stats enable', ''),
+                                                ('stats auth {}'.format(user_string), ''),
+                                                ('stats uri {}'.format(self.charm_config['stats-url']), '')]
                                     })
         if self.charm_config['stats-local']:
-            config_block['acls'].append(Config.Acl('local','src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
-            config_block['configs'].append(('block if !local',''))
+            config_block['acls'].append(Config.Acl('local', 'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
+            config_block['configs'].append(('block if !local', ''))
         frontend = Config.Frontend('stats', '0.0.0.0', self.charm_config['stats-port'], config_block)
         self.proxy_config.frontends.append(frontend)
         if save:
             self.save_config()
 
-    def disable_stats(self,save=True):
+    def disable_stats(self, save=True):
         # Remove any previous stats frontend
         self.proxy_config.frontends = [fe for fe in self.proxy_config.frontends if fe.name != 'stats']
         if save:
             self.save_config()
 
-    def get_frontend(self,port=None,create=True):
+    def get_frontend(self, port=None, create=True):
         port = str(port)
         frontend = None
         for fe in self.proxy_config.frontends:
-            hookenv.log("Checking frontend for port {}".format(port),"DEBUG")
-            hookenv.log("Port is: {}".format(fe.port),"DEBUG")
+            hookenv.log("Checking frontend for port {}".format(port), "DEBUG")
+            hookenv.log("Port is: {}".format(fe.port), "DEBUG")
             if fe.port == port:
-                hookenv.log("Using previous frontend","DEBUG")
+                hookenv.log("Using previous frontend", "DEBUG")
                 config_block = ConfigBlock(**fe.config_block)
                 fe.config_block = config_block
                 frontend = fe
                 break
         if frontend is None and create:
-            hookenv.log("Creating frontend for port {}".format(port),"INFO")
-            config_block = ConfigBlock({'binds':[Config.Bind('0.0.0.0', port, None)]})
+            hookenv.log("Creating frontend for port {}".format(port), "INFO")
+            config_block = ConfigBlock({'binds': [Config.Bind('0.0.0.0', port, None)]})
             frontend = Config.Frontend('relation-{}'.format(port), '0.0.0.0', port, config_block)
             self.proxy_config.frontends.append(frontend)
         return frontend
 
-    def get_backend(self,name=None):
+    def get_backend(self, name=None):
         backend = None
         for be in self.proxy_config.backends:
             if be.name == name:
@@ -192,10 +193,10 @@ class ProxyHelper():
             self.proxy_config.backends.append(backend)
         return backend
 
-    def clean_config(self,unit,backend_name,save=True):
+    def clean_config(self, unit, backend_name, save=True):
         # HAProxy units can't have / character, replace it so it doesn't fail on a common error of passing in the juju unit
-        unit = unit.replace('/','-')
-        backend_name = backend_name.replace('/','-')
+        unit = unit.replace('/', '-')
+        backend_name = backend_name.replace('/', '-')
         hookenv.log("Cleaning unit,backend: {},{}".format(unit, backend_name), 'DEBUG')
 
         # Remove acls and use_backend statements from frontends
@@ -208,7 +209,8 @@ class ProxyHelper():
             be.config_block['servers'] = [srv for srv in be.servers() if srv.name != unit]
         
         # Remove any relation frontend if it doesn't have use_backend
-        self.proxy_config.frontends = [fe for fe in self.proxy_config.frontends if len(fe.usebackends()) > 0 or not fe.name.startswith('relation')]
+        self.proxy_config.frontends = [fe for fe in self.proxy_config.frontends if len(fe.usebackends()) > 0 
+                                       or not fe.name.startswith('relation')]
 
         # Remove any backend with no server
         self.proxy_config.backends = [be for be in self.proxy_config.backends if len(be.servers()) > 0]
@@ -241,35 +243,35 @@ class ProxyHelper():
         self.update_ports()
 
     def update_ports(self):
-        opened_ports = str(subprocess.check_output(["opened-ports"]),'utf-8').split('/tcp\n')
-        hookenv.log("Opened ports {}".format(opened_ports),"DEBUG")
+        opened_ports = str(subprocess.check_output(["opened-ports"]), 'utf-8').split('/tcp\n')
+        hookenv.log("Opened ports {}".format(opened_ports), "DEBUG")
         for frontend in self.proxy_config.frontends:
             if frontend.port in opened_ports:
-                hookenv.log("Port already open {}".format(frontend.port),"DEBUG")
+                hookenv.log("Port already open {}".format(frontend.port), "DEBUG")
                 opened_ports.remove(frontend.port)
             else:
-                hookenv.log("Opening {}".format(frontend.port),"DEBUG")
+                hookenv.log("Opening {}".format(frontend.port), "DEBUG")
                 hookenv.open_port(frontend.port)
         for port in opened_ports:
             if port:
-                hookenv.log("Closing port {}".format(port),"DEBUG")
+                hookenv.log("Closing port {}".format(port), "DEBUG")
                 hookenv.close_port(port)
 
     def enable_letsencrypt(self):
-        hookenv.log("Enabling letsencrypt","DEBUG")
+        hookenv.log("Enabling letsencrypt", "DEBUG")
         unit_name = 'letsencrypt'
         backend_name = 'letsencrypt-backend'
 
         frontend = self.get_frontend(80)
         if not self.available_for_http(frontend):
-            hookenv.log("Port 80 not available for http use by letsencrypt","ERROR")
-            return #TODO: Should I error here or is just returning with a log ok?
+            hookenv.log("Port 80 not available for http use by letsencrypt", "ERROR")
+            return  # TODO: Should I error here or is just returning with a log ok?
 
         # Only configure the rest if we haven't already done so to avoid checking every change for already existing
         first_run = True
         for acl in frontend.acls():
             if acl.name == unit_name:
-               first_run = False 
+                first_run = False 
         if first_run:
             # Add ACL to the frontend
             acl = Config.Acl(name=unit_name, value='path_beg -i /.well-known/acme-challenge/')
@@ -293,11 +295,11 @@ class ProxyHelper():
             self.save_config()
 
         # Call the register function from the letsencrypt layer
-        hookenv.log("Letsencrypt port: {}".format(self.letsencrypt_config['port']),'DEBUG')
-        hookenv.log("Letsencrypt domains: {}".format(self.charm_config['letsencrypt-domains']),'DEBUG')
+        hookenv.log("Letsencrypt port: {}".format(self.letsencrypt_config['port']), 'DEBUG')
+        hookenv.log("Letsencrypt domains: {}".format(self.charm_config['letsencrypt-domains']), 'DEBUG')
         if letsencrypt.register_domains() > 0:
-            hookenv.log("Failed letsencrypt registration see /var/log/letsencrypt.log","ERROR")
-            return #TODO: Should I error here or is just returning with a log ok?
+            hookenv.log("Failed letsencrypt registration see /var/log/letsencrypt.log", "ERROR")
+            return  # TODO: Should I error here or is just returning with a log ok?
 
         # create the merged .pem for HAProxy
         self.merge_letsencrypt_cert()
@@ -314,86 +316,86 @@ class ProxyHelper():
         # Add cron for renew
         self.add_cert_cron()
 
-    def disable_letsencrypt(self,save=True):
+    def disable_letsencrypt(self, save=True):
         # Remove any previous config 
-        self.clean_config(unit='letsencrypt',backend_name='letsencrypt-backend',save=save)
+        self.clean_config(unit='letsencrypt', backend_name='letsencrypt-backend', save=save)
         self.remove_cert_cron()
          
     def merge_letsencrypt_cert(self):
         letsencrypt_live_folder = '/etc/letsencrypt/live/{}/'.format(self.domain_name)
-        with open(self.cert_file,'wb') as outFile:
-            with open(letsencrypt_live_folder+'fullchain.pem','rb') as chainFile:
+        with open(self.cert_file, 'wb') as outFile:
+            with open(letsencrypt_live_folder + 'fullchain.pem', 'rb') as chainFile:
                 outFile.write(chainFile.read())
-            with open(letsencrypt_live_folder+'privkey.pem','rb') as privFile:
+            with open(letsencrypt_live_folder + 'privkey.pem', 'rb') as privFile:
                 outFile.write(privFile.read())
 
-    def renew_cert(self,full=True):
-        hookenv.log("Renewing cert","INFO")
+    def renew_cert(self, full=True):
+        hookenv.log("Renewing cert", "INFO")
         if full:
             # Calling a full disable/enable to clean and re-write the config to catch domain changes in the charm config
-            hookenv.log("Performing full domain register","INFO")
+            hookenv.log("Performing full domain register", "INFO")
             self.disable_letsencrypt()
             self.enable_letsencrypt()
         else:
-            hookenv.log("Performing renew only","INFO")
+            hookenv.log("Performing renew only", "INFO")
             letsencrypt.renew()
             # create the merged .pem for HAProxy
             self.merge_letsencrypt_cert()
 
     def renew_upnp(self):
-        hookenv.log("Renewing upnp port requests","INFO")
+        hookenv.log("Renewing upnp port requests", "INFO")
         # check that open ports is accurate
         self.update_ports()
         # send upnp for ports even if they were already open
-        opened_ports = str(subprocess.check_output(["opened-ports"]),'utf-8').split('/tcp\n')
+        opened_ports = str(subprocess.check_output(["opened-ports"]), 'utf-8').split('/tcp\n')
         opened_ports.remove('')
         for port in opened_ports:
-            hookenv.log("Opening port {}".format(port),"INFO")
+            hookenv.log("Opening port {}".format(port), "INFO")
             hookenv.open_port(port)
 
     def release_upnp(self):
-        hookenv.log("Releaseing all upnp port requests","INFO")
+        hookenv.log("Releaseing all upnp port requests", "INFO")
         # check that open ports is accurate
         self.update_ports()
         # send upnp for ports even if they were already open
-        opened_ports = str(subprocess.check_output(["opened-ports"]),'utf-8').split('/tcp\n')
+        opened_ports = str(subprocess.check_output(["opened-ports"]), 'utf-8').split('/tcp\n')
         opened_ports.remove('')
         for port in opened_ports:
-            hookenv.log("Closing port {}".format(port),"INFO")
+            hookenv.log("Closing port {}".format(port), "INFO")
             hookenv.close_port(port)
 
-    def add_cron(self,action,interval):
+    def add_cron(self, action, interval):
         ''' action: name of the action to run
             interval: cron interval to set '''
         root_cron = CronTab(user='root')
         unit = hookenv.local_unit()
         directory = hookenv.charm_dir()
-        action_path = directory+'/actions/{}'.format(action)
-        command = "juju-run {unit} {action}".format(unit=unit,action=action_path)
-        job = root_cron.new(command=command,comment="Charm cron for {}".format(action))
+        action_path = directory + '/actions/{}'.format(action)
+        command = "juju-run {unit} {action}".format(unit=unit, action=action_path)
+        job = root_cron.new(command=command, comment="Charm cron for {}".format(action))
         job.setall(interval)
         root_cron.write()
-        hookenv.log("Cron added: {}".format(action),"INFO")
+        hookenv.log("Cron added: {}".format(action), "INFO")
 
-    def remove_cron(self,action):
+    def remove_cron(self, action):
         root_cron = CronTab(user='root')
         try:
             job = next(root_cron.find_comment("Charm cron for {}".format(action)))
             root_cron.remove(job)
             root_cron.write()
         except StopIteration:
-            hookenv.log("Cron was not present to remove","WARN")
+            hookenv.log("Cron was not present to remove", "WARN")
             pass
-        hookenv.log("Cron removed: {}".format(action),"INFO")
+        hookenv.log("Cron removed: {}".format(action), "INFO")
 
     def add_cert_cron(self):
-        self.add_cron('renew-cert',self.charm_config['cert-renew-interval'])
+        self.add_cron('renew-cert', self.charm_config['cert-renew-interval'])
 
     def remove_cert_cron(self):
         self.remove_cron('renew-cert')
 
     def add_upnp_cron(self):
-        self.add_cron('renew-upnp',self.charm_config['upnp-renew-interval'])
+        self.add_cron('renew-upnp', self.charm_config['upnp-renew-interval'])
 
     def remove_upnp_cron(self):
         self.remove_cron('renew-upnp')
