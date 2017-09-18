@@ -35,19 +35,8 @@ options:
     type: string
     default: '@hourly'
     description: "Cron interval to rewnew upnp, if in use"
-
-
-  # Examples
-  #string-option:
-  #  type: string
-  #  default: "Default Value"
-  #  description: "A short description of the configuration option"
-  #boolean-option:
-  #  type: boolean
-  #  default: False
-  #  description: "A short description of the configuration option"
-  #int-option:
-  #  type: int
-  #  default: 9001
-  #  description: "A short description of the configuration option"
+  destination-https-rewrite:
+    type: boolean
+    default: True
+    description: "Rewrite 'Destination' header so WebDav servers wont fail on mismatched file paths (http vs https)"
 

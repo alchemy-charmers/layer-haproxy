@@ -298,7 +298,7 @@ class ProxyHelper():
         hookenv.log("Letsencrypt port: {}".format(self.letsencrypt_config['port']), 'DEBUG')
         hookenv.log("Letsencrypt domains: {}".format(self.charm_config['letsencrypt-domains']), 'DEBUG')
         if letsencrypt.register_domains() > 0:
-            hookenv.log("Failed letsencrypt registration see /var/log/letsencrypt.log", "ERROR")
+            hookenv.log("Failed letsencrypt registration see /var/log/letsencrypt/letsencrypt.log", "ERROR")
             return  # TODO: Should I error here or is just returning with a log ok?
 
         # create the merged .pem for HAProxy
@@ -311,13 +311,20 @@ class ProxyHelper():
         if first_run:
             frontend.acls().append(acl)
             frontend.usebackends().append(use_backend)
+            if self.charm_config['destination-https-rewrite']:
+                frontend.configs().append(('reqirep', 'Destination:\\ https(.*) Destination:\\ http\\\\1 '))
             self.save_config() 
 
         # Add cron for renew
         self.add_cert_cron()
 
     def disable_letsencrypt(self, save=True):
-        # Remove any previous config 
+        # Remove non-standard frontend configs
+        frontend = self.get_frontend(443)
+        frontend.binds()[0].attributes[:] = []  # Remove ssl cert attribute
+        frontend.config_block['configs'] = [config for config in frontend.configs()
+                                            if config != ('reqirep', 'Destination:\\ https(.*) Destination:\\ http\\\\1 ')]
+        # Remove any standard config 
         self.clean_config(unit='letsencrypt', backend_name='letsencrypt-backend', save=save)
         self.remove_cert_cron()
          
