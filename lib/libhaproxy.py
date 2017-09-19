@@ -41,6 +41,13 @@ class ProxyHelper():
             self._proxy_config = Parser(self.proxy_config_file).build_configuration()
         return self._proxy_config 
 
+    def add_timeout_tunnel(self, timeout='1h', save=True):
+        tunnel_config = ("timeout tunnel", "{}".format(timeout))
+        if tunnel_config not in self.proxy_config.defaults[0].configs():
+            self.proxy_config.defaults[0].configs().append(tunnel_config)
+        if save:
+            self.save_config()
+
     def get_config_names(self, config):
         remote_unit = hookenv.remote_unit().replace('/', '-')
         backend_name = config['group_id'] or remote_unit
