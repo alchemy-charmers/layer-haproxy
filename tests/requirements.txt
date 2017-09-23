@@ -1,0 +1,2 @@
+amulet
+python-requests
