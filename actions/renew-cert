@@ -3,7 +3,7 @@
 from charmhelpers.core import hookenv
 import sys
 sys.path.append(hookenv.charm_dir())
-sys.path.append(hookenv.charm_dir()+'/lib')
+sys.path.append(hookenv.charm_dir() + '/lib')
 
 from libhaproxy import ProxyHelper
 
@@ -11,8 +11,9 @@ from libhaproxy import ProxyHelper
 try:
     full = hookenv.action_get('full')
 except:
-    full = 'False'
+    full = False
 
+hookenv.log("Calling with full= {}".format(full), 'DEBUG')
 ph = ProxyHelper()
 ph.renew_cert(full=full)
 
