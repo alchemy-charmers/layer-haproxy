@@ -71,7 +71,7 @@ def remove_relation(reverseproxy, *args):
 def version_changed():
     if hookenv.hook_name() == "install":
         return
-    hookenv.log('Version change will not affect running units', 'WARNING') 
+    hookenv.log('Version change will not affect running units', 'WARNING')
     hookenv.status_set('active', "version change to {} not applied, redeploy"
                        "unit for version change".format(ph.charm_config['version']))
 
