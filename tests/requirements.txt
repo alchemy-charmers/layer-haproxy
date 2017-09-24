@@ -1,3 +1,4 @@
 charmhelpers
 charms.reactive
 pytest
+mock
