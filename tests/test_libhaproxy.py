@@ -14,7 +14,7 @@ import mock
 # ph = ProxyHelper()
 
 
-@pytest.fixture(scope="module")
+# @pytest.fixture(scope="module")
 def mock_layers():
     import sys
     sys.modules["charms.layer"] = mock.MagicMock()
@@ -22,7 +22,7 @@ def mock_layers():
     sys.modules["reactive.letsencrypt"] = mock.MagicMock()
 
 
-@pytest.fixture(scope="module")
+# @pytest.fixture(scope="module")
 def mock_hookenv_config():
     from charmhelpers.core import hookenv
     import yaml
@@ -41,19 +41,38 @@ def mock_hookenv_config():
     hookenv.config = mock_config
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def ph():
     from libhaproxy import ProxyHelper
     ph = ProxyHelper()
-    ph.proxy_config_file = "./tests/haproxy.cfg"
+    # # # with open(tmpdir.mkdir("haproxy").join("haproxy.cfg"), 'w') as cfg_file:
+    # cfg_file = tmpdir.join("haproxy.cfg")
+    # with open('./tests/haproxy.cfg', 'r') as src_file:
+    #     cfg_file.write(src_file.read())
+    # ph.proxy_config_file = cfg_file
+    # print("cfg_file: {}".format(cfg_file))
     return ph
 
 
-@pytest.mark.usefixtures('mock_layers', 'mock_hookenv_config')
+# @pytest.fixture
+# def phCfg(monkeypatch, ph):
+#     # monkeypatch.setattr("libhaproxy.ProxyHelper.proxy_config_file", "./tests/haproxy.cfg")
+#     # print(ph.proxy_config_file)
+#     # print(ph.proxy_config.defaults)
+#     monkeypatch.setattr(ph, "proxy_config_file", "./tests/haproxy.cfg")
+#     return ph
+#     # yield monkeypatch.setattr(ph, "_proxy_config", None)
+#     # print(ph.proxy_config_file)
+#     # print(ph.proxy_config.defaults)
+
+
+# @pytest.mark.usefixtures('mock_layers', 'mock_hookenv_config')
 class TestLibhaproxy:
     @property
-    @pytest.mark.usefixtures('ph')
+    @pytest.mark.usefixtures('ph', 'mock_layers', 'mock_hookenv_config')
     def ph(self):
+        mock_layers()
+        mock_hookenv_config()
         return ph()
         
     def test_pytest(self):
@@ -63,11 +82,12 @@ class TestLibhaproxy:
         assert isinstance(self.ph.charm_config, dict)
 
     def test_proxy_config(self):
-        self.ph.proxy_config.defaults
+        print(self.ph.proxy_config.defaults)
         print("defaults: {}".format(self.ph.proxy_config.defaults[0].options()))
-        print(type(self.ph.proxy_config.defaults[0].options()))
-        options = self.ph.proxy_config.defaults[0].options()
-        print(options, sep='\n')
+        # print("defaults: {}".format(phCfg.proxy_config.defaults[0].options()))
+        # print(type(self.ph.proxy_config.defaults[0].options()))
+        # options = self.ph.proxy_config.defaults[0].options()
+        # print(options, sep='\n')
         # print("defaults: {}".format(self.ph.proxy_config.defaults[0].configs()))
         assert 0
 
