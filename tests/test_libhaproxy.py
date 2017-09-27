@@ -53,6 +53,6 @@ class TestLibhaproxy():
         assert not os.path.isfile(ph.cert_file)
         ph.merge_letsencrypt_cert()
         assert os.path.isfile(ph.cert_file)
-        with open(ph.cert_file, 'r') as certFile:
-            assert certFile.readline() == 'fullchain.pem\n'
-            assert certFile.readline() == 'privkey.pem\n'
+        with open(ph.cert_file, 'r') as cert_file:
+            assert cert_file.readline() == 'fullchain.pem\n'
+            assert cert_file.readline() == 'privkey.pem\n'
