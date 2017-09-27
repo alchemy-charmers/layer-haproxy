@@ -7,14 +7,16 @@ import mock
 def mock_open(monkeypatch):
     normal_open = open
 
-    def wrapper(*args):
+    def wrapper(*args, **kwargs):
         content = None
-        # if args[0] == '/etc/haproxy/ssl/mock.pem':
-        #     content = "mock.pem"
         if args[0] == '/etc/letsencrypt/live/mock/fullchain.pem':
-            content = 'fullchain.pem'
+            content = 'fullchain.pem\n'
+            if 'b' in args[1]:
+                content = bytes(content, encoding='utf8')
         elif args[0] == '/etc/letsencrypt/live/mock/privkey.pem':
-            content = 'privkey.pem'
+            content = 'privkey.pem\n'
+            if 'b' in args[1]:
+                content = bytes(content, encoding='utf8')
         else:
             file_object = normal_open(*args)
             return file_object
@@ -100,5 +102,9 @@ def ph(mock_layers, mock_hookenv_config, tmpdir, mock_ports):
     ph.proxy_config_file = cfg_file.strpath
 
     # Patch the combined cert file to a tmpfile
+    crt_file = tmpdir.join("mock.pem")
+    ph.cert_file = crt_file.strpath
 
     return ph
+
+

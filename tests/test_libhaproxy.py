@@ -1,10 +1,6 @@
 #!/usr/bin/python3
 
-# try:
-#     from libhaproxy import ProxyHelper
-# except:
-#     subprocess.check_call('2to3-3.5 -w /usr/local/lib/python3.5/dist-packages/pyhaproxy', shell=True)
-#     from libhaproxy import ProxyHelper
+import os
 
 
 class TestLibhaproxy():
@@ -53,6 +49,10 @@ class TestLibhaproxy():
                   }
         print(ph.process_config(config))
 
-    def test_merge_letsencrypt_cert(self, ph, mock_open):
+    def test_merge_letsencrypt_cert(self, ph, cert):
+        assert not os.path.isfile(ph.cert_file)
         ph.merge_letsencrypt_cert()
-        assert 0 
+        assert os.path.isfile(ph.cert_file)
+        with open(ph.cert_file, 'r') as certFile:
+            assert certFile.readline() == 'fullchain.pem\n'
+            assert certFile.readline() == 'privkey.pem\n'
