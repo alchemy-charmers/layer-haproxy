@@ -53,3 +53,6 @@ class TestLibhaproxy():
                   }
         print(ph.process_config(config))
 
+    def test_merge_letsencrypt_cert(self, ph, mock_open):
+        ph.merge_letsencrypt_cert()
+        assert 0 

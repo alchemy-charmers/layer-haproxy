@@ -4,6 +4,28 @@ import mock
 
 
 @pytest.fixture
+def mock_open(monkeypatch):
+    normal_open = open
+
+    def wrapper(*args):
+        content = None
+        # if args[0] == '/etc/haproxy/ssl/mock.pem':
+        #     content = "mock.pem"
+        if args[0] == '/etc/letsencrypt/live/mock/fullchain.pem':
+            content = 'fullchain.pem'
+        elif args[0] == '/etc/letsencrypt/live/mock/privkey.pem':
+            content = 'privkey.pem'
+        else:
+            file_object = normal_open(*args)
+            return file_object
+        file_object = mock.mock_open(read_data=content).return_value
+        file_object.__iter__.return_value = content.splitlines(True)
+        return file_object
+
+    monkeypatch.setattr('builtins.open', wrapper)
+
+
+@pytest.fixture
 def mock_layers():
     import sys
     sys.modules["charms.layer"] = mock.MagicMock()
@@ -76,5 +98,7 @@ def ph(mock_layers, mock_hookenv_config, tmpdir, mock_ports):
     with open('./tests/haproxy.cfg', 'r') as src_file:
         cfg_file.write(src_file.read())
     ph.proxy_config_file = cfg_file.strpath
+
+    # Patch the combined cert file to a tmpfile
 
     return ph

@@ -344,7 +344,7 @@ class ProxyHelper():
                 outFile.write(chainFile.read())
             with open(letsencrypt_live_folder + 'privkey.pem', 'rb') as privFile:
                 outFile.write(privFile.read())
-
+            
     def renew_cert(self, full=True):
         hookenv.log("Renewing cert", "INFO")
         if full:
