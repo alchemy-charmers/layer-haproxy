@@ -4,7 +4,7 @@ import mock
 
 
 @pytest.fixture
-def mock_open(monkeypatch):
+def cert(monkeypatch):
     normal_open = open
 
     def wrapper(*args, **kwargs):
