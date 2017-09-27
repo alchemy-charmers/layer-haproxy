@@ -12,8 +12,7 @@ def mock_layers():
 
 
 @pytest.fixture
-def mock_hookenv_config():
-    from charmhelpers.core import hookenv
+def mock_hookenv_config(monkeypatch):
     import yaml
 
     def mock_config():
@@ -27,11 +26,38 @@ def mock_hookenv_config():
         # Manually add cfg from other layers
         cfg['letsencrypt-domains'] = 'mock'
         return cfg
-    hookenv.config = mock_config
+
+    monkeypatch.setattr('libhaproxy.hookenv.config', mock_config)
 
 
 @pytest.fixture
-def ph(mock_layers, mock_hookenv_config, tmpdir):
+def mock_remote_unit(monkeypatch):
+    def wrapper():
+        return 'unit-mock/0'
+    monkeypatch.setattr('libhaproxy.hookenv.remote_unit', wrapper)
+
+
+@pytest.fixture
+def mock_ports(monkeypatch, open_ports=None):
+    if not open_ports:
+        open_ports = ''
+        # open_ports = '80/tcp\n'
+
+    def wrapper(*args, **kwargs):
+        if args[0][0] == "opened-ports":
+            return bytes(open_ports, encoding='utf8')
+        elif args[0][0] == "close-port":
+            open_ports.replace(args[0][1], '')
+            return bytes(open_ports, encoding='utf8')
+        else:
+            print("called with: {}".format(args[0]))
+            return None
+    monkeypatch.setattr('libhaproxy.subprocess.check_output', wrapper)
+    monkeypatch.setattr('libhaproxy.subprocess.check_call', wrapper)
+
+
+@pytest.fixture
+def ph(mock_layers, mock_hookenv_config, tmpdir, mock_ports):
     import subprocess
     import os
     import sys

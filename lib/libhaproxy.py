@@ -49,11 +49,13 @@ class ProxyHelper():
             self.save_config()
 
     def get_config_names(self, config):
+        ''' Note this requires a remote unit '''
         remote_unit = hookenv.remote_unit().replace('/', '-')
         backend_name = config['group_id'] or remote_unit
         return remote_unit, backend_name
 
     def process_config(self, config):
+        ''' Note this requires a remote unit '''
         remote_unit, backend_name = self.get_config_names(config)
 
         # Remove any prior configuration as it might have changed, do not write cfg file we still have edits to make
