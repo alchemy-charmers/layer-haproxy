@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import pytest 
+import pytest
 import mock
 
 
@@ -55,33 +55,39 @@ def mock_hookenv_config(monkeypatch):
 
 
 @pytest.fixture
-def mock_remote_unit(monkeypatch):
-    def wrapper():
-        return 'unit-mock/0'
-    monkeypatch.setattr('libhaproxy.hookenv.remote_unit', wrapper)
+def mock_service_reload(monkeypatch):
+    monkeypatch.setattr('libhaproxy.host.service_reload', lambda x: None)
 
 
 @pytest.fixture
-def mock_ports(monkeypatch, open_ports=None):
-    if not open_ports:
-        open_ports = ''
-        # open_ports = '80/tcp\n'
+def mock_remote_unit(monkeypatch):
+    monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
+
+
+@pytest.fixture
+def mock_ports(monkeypatch, open_ports=''):
 
     def wrapper(*args, **kwargs):
         if args[0][0] == "opened-ports":
-            return bytes(open_ports, encoding='utf8')
+            return bytes(wrapper.open_ports, encoding='utf8')
+        elif args[0][0] == "open-port":
+            wrapper.open_ports = wrapper.open_ports + args[0][1].lower() + '\n'
+            return bytes(wrapper.open_ports, encoding='utf8')
         elif args[0][0] == "close-port":
-            open_ports.replace(args[0][1], '')
-            return bytes(open_ports, encoding='utf8')
+            wrapper.open_ports.replace(args[0][1], '')
+            return bytes(wrapper.open_ports, encoding='utf8')
         else:
             print("called with: {}".format(args[0]))
             return None
+    wrapper.open_ports = open_ports
+
     monkeypatch.setattr('libhaproxy.subprocess.check_output', wrapper)
     monkeypatch.setattr('libhaproxy.subprocess.check_call', wrapper)
 
 
 @pytest.fixture
-def ph(mock_layers, mock_hookenv_config, tmpdir, mock_ports):
+def ph(mock_layers, mock_hookenv_config, tmpdir, mock_ports,
+       mock_service_reload):
     import subprocess
     import os
     import sys
@@ -106,5 +112,3 @@ def ph(mock_layers, mock_hookenv_config, tmpdir, mock_ports):
     ph.cert_file = crt_file.strpath
 
     return ph
-
-

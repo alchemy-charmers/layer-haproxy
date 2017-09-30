@@ -4,7 +4,7 @@ import os
 
 
 class TestLibhaproxy():
-       
+
     def test_pytest(self):
         assert True
 
@@ -38,7 +38,9 @@ class TestLibhaproxy():
         config = {'group_id': 'test_group'}
         remote_unit, backend_name = ph.get_config_names(config)
 
-    def test_process_config(self, ph, mock_remote_unit):
+    def test_process_config(self, ph, monkeypatch):
+        # Test writting a config file
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
         config = {'mode': 'http',
                   'urlbase': '/test',
                   'subdomain': None,
@@ -47,7 +49,33 @@ class TestLibhaproxy():
                   'internal_host': 'test-host',
                   'internal_port': 8000
                   }
+        assert ph.process_config(config)['cfg_good'] is True
+
+        # Error if tcp requested on existing http frontend
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')
+        config['mode'] = 'tcp'
+        assert ph.process_config(config)['cfg_good'] is False
+
+        # Successful tcp on unused frontend
+        config['external_port'] = 90
+        assert ph.process_config(config)['cfg_good'] is True
+
+        # Error if http requested on existing tcp frontend
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/2')
+        config['mode'] = 'http'
+        assert ph.process_config(config)['cfg_good'] is False
+
+        # Register with subdomain
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/2')
+        config['subdomain'] = 'subtest'
+        config['external_port'] = 80
         print(ph.process_config(config))
+        assert ph.process_config(config)['cfg_good'] is True
+
+        # Register with only subdomain
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/3')
+        config['urlbase'] = None
+        assert ph.process_config(config)['cfg_good'] is True
 
     def test_merge_letsencrypt_cert(self, ph, cert):
         assert not os.path.isfile(ph.cert_file)
