@@ -86,18 +86,22 @@ def mock_ports(monkeypatch, open_ports=''):
 
 
 @pytest.fixture
-def ph(mock_layers, mock_hookenv_config, tmpdir, mock_ports,
-       mock_service_reload):
-    import subprocess
+def pyhaproxy(mock_layers, mock_hookenv_config):
     import os
     import sys
-    if 'libhaproxy' not in sys.modules.keys():
+    import subprocess
+    if 'pyhaproxy' not in sys.modules.keys():
         import pyhaproxy
         module_path = os.path.dirname(pyhaproxy.__file__)
         del sys.modules['pyhaproxy']
         del pyhaproxy
         subprocess.check_call('2to3-3.5 -w {}'.format(module_path), shell=True)
+        import pyhaproxy
 
+
+@pytest.fixture
+# def ph(mock_layers, mock_hookenv_config, tmpdir, mock_ports,
+def ph(pyhaproxy, tmpdir, mock_ports, mock_service_reload):
     from libhaproxy import ProxyHelper
     ph = ProxyHelper()
 

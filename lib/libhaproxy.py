@@ -117,7 +117,9 @@ class ProxyHelper():
         self.save_config()
         return({"cfg_good": True, "msg": "configuration applied"})
 
-    def available_for_http(self, frontend, config=None):
+    # TODO: Can config input be removed?
+    # def available_for_http(self, frontend, config=None):
+    def available_for_http(self, frontend):
         if frontend.name == "stats":
             return False
         for config in frontend.configs():
@@ -142,11 +144,11 @@ class ProxyHelper():
         self.disable_stats(save=False)
 
         # Check that no frontend exists with conflicting port
-        if self.get_frontend(port=self.charm_config['stats-port'], create=False):
+        if self.get_frontend(port=self.charm_config['stats-port'], create=False) is not None:
             hookenv.log("Stats port {} already in use".format(self.charm_config['stats-port']), 'ERROR')
             if save:
                 self.save_config()
-            return
+            return False
 
         # Generate new front end for stats
         user_string = '{}:{}'.format(self.charm_config['stats-user'], self.charm_config['stats-passwd'])
@@ -158,10 +160,11 @@ class ProxyHelper():
         if self.charm_config['stats-local']:
             config_block['acls'].append(Config.Acl('local', 'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
             config_block['configs'].append(('block if !local', ''))
-        frontend = Config.Frontend('stats', '0.0.0.0', self.charm_config['stats-port'], config_block)
+        frontend = Config.Frontend('stats', '0.0.0.0', str(self.charm_config['stats-port']), config_block)
         self.proxy_config.frontends.append(frontend)
         if save:
             self.save_config()
+        return True
 
     def disable_stats(self, save=True):
         # Remove any previous stats frontend

@@ -77,6 +77,89 @@ class TestLibhaproxy():
         config['urlbase'] = None
         assert ph.process_config(config)['cfg_good'] is True
 
+    def test_get_frontend(self, ph):
+        import pyhaproxy
+        assert ph.get_frontend(80, create=False) is None
+        assert not isinstance(ph.get_frontend(80, create=False), pyhaproxy.config.Frontend)
+        assert isinstance(ph.get_frontend(80), pyhaproxy.config.Frontend)
+        assert isinstance(ph.get_frontend(80, create=False), pyhaproxy.config.Frontend)
+        assert ph.get_frontend(70).port == '70'
+        assert ph.get_frontend(80).port == '80'
+        assert ph.get_frontend(90).port == '90'
+
+    def test_enable_stats(self, ph):
+        fe9000 = ph.get_frontend(9000)
+        assert fe9000.port == '9000'
+        assert fe9000.name == 'relation-9000'
+        assert ph.enable_stats() is False
+        fe9000.port = 0
+        assert ph.enable_stats() is True
+
+    def test_available_fort_http(self, ph, monkeypatch):
+        config = {'mode': 'http',
+                  'urlbase': '/test',
+                  'subdomain': None,
+                  'group_id': None,
+                  'external_port': 80,
+                  'internal_host': 'test-host',
+                  'internal_port': 8000
+                  }
+        # Create http at 80
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
+        assert ph.process_config(config)['cfg_good'] is True
+        fe80 = ph.get_frontend(80)
+        # Create tcp at 90
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')
+        config['mode'] = 'tcp'
+        config['external_port'] = 90
+        assert ph.process_config(config)['cfg_good'] is True
+        fe90 = ph.get_frontend(90)
+        # Get default stats frontend
+        fe9000 = ph.get_frontend(9000)
+        # Verify http checks
+        assert ph.available_for_http(fe80) is True
+        assert ph.available_for_http(fe90) is False
+        # Check stats port
+        assert ph.available_for_http(fe9000) is True
+        fe9000.port = 0  # Move from 9k so stats can enable
+        ph.enable_stats()
+        fe9000 = ph.get_frontend(9000)
+        assert ph.available_for_http(fe9000) is False
+
+    def test_available_fort_tcp(self, ph, monkeypatch):
+        config = {'mode': 'http',
+                  'urlbase': '/test',
+                  'subdomain': None,
+                  'group_id': None,
+                  'external_port': 80,
+                  'internal_host': 'test-host',
+                  'internal_port': 8000
+                  }
+        # Create http at 80
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
+        assert ph.process_config(config)['cfg_good'] is True
+        fe80 = ph.get_frontend(80)
+        # Create tcp at 90
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')
+        config['mode'] = 'tcp'
+        config['external_port'] = 90
+        assert ph.process_config(config)['cfg_good'] is True
+        fe90 = ph.get_frontend(90)
+        # Get default stats frontend
+        fe9000 = ph.get_frontend(9000)
+        # Verify tcp checks
+        assert ph.available_for_tcp(fe80, 'unit-mock-0') is False
+        assert ph.available_for_tcp(fe90, 'unit-mock-0') is False
+        assert ph.available_for_tcp(fe90, 'unit-mock-1') is True
+        # Check stats port
+        assert ph.available_for_tcp(fe9000, 'unit-mock-0') is True
+        assert ph.available_for_tcp(fe9000, 'unit-mock-1') is True
+        fe9000.port = 0  # Move from 9k so stats can enable
+        ph.enable_stats()
+        fe9000 = ph.get_frontend(9000)
+        assert ph.available_for_tcp(fe9000, 'unit-mock-0') is False
+        assert ph.available_for_tcp(fe9000, 'unit-mock-1') is False
+
     def test_merge_letsencrypt_cert(self, ph, cert):
         assert not os.path.isfile(ph.cert_file)
         ph.merge_letsencrypt_cert()
