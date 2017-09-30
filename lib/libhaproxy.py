@@ -191,14 +191,14 @@ class ProxyHelper():
             self.proxy_config.frontends.append(frontend)
         return frontend
 
-    def get_backend(self, name=None):
+    def get_backend(self, name=None, create=True):
         backend = None
         for be in self.proxy_config.backends:
             if be.name == name:
                 config_block = ConfigBlock(**be.config_block)
                 be.config_block = config_block
                 backend = be
-        if not backend:
+        if not backend and create:
             hookenv.log("Creating backend {}".format(name))
             config_block = ConfigBlock()
             backend = Config.Backend(name=name, config_block=config_block)
@@ -214,7 +214,7 @@ class ProxyHelper():
         # Remove acls and use_backend statements from frontends
         for fe in self.proxy_config.frontends:
             fe.config_block['acls'] = [acl for acl in fe.acls() if acl.name != unit]
-            fe.config_block['usebackends'] = [ub for ub in fe.usebackends() if ub.backend_name != backend_name]
+            fe.config_block['usebackends'] = [ub for ub in fe.usebackends() if ub.backend_condition != unit]
 
         # Remove server statements from backends
         for be in self.proxy_config.backends:

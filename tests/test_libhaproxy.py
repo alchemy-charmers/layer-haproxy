@@ -69,13 +69,25 @@ class TestLibhaproxy():
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/2')
         config['subdomain'] = 'subtest'
         config['external_port'] = 80
-        print(ph.process_config(config))
         assert ph.process_config(config)['cfg_good'] is True
 
         # Register with only subdomain
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/3')
         config['urlbase'] = None
         assert ph.process_config(config)['cfg_good'] is True
+
+        # Add two units with a group-id
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/4')
+        config['group_id'] = 'test-group'
+        assert ph.process_config(config)['cfg_good'] is True
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/5')
+        config['group_id'] = 'test-group'
+        assert ph.process_config(config)['cfg_good'] is True
+
+        # Check that the expected number of backends are in use
+        # Backends 0,2,3,4,5 should be in use by HTTP
+        http_fe = ph.get_frontend(80, create=False)
+        assert len(http_fe.config_block['usebackends']) == 5
 
     def test_get_frontend(self, ph):
         import pyhaproxy
@@ -87,13 +99,49 @@ class TestLibhaproxy():
         assert ph.get_frontend(80).port == '80'
         assert ph.get_frontend(90).port == '90'
 
+    def test_get_backend(self, ph, monkeypatch):
+        import pyhaproxy
+        # Create and return a new backend
+        new_be = ph.get_backend('test-backend')
+        assert isinstance(new_be, pyhaproxy.config.Backend)
+        assert new_be.name == 'test-backend'
+        assert new_be.config_block['configs'] == []
+        # Retrieve existing backend
+        config = {'mode': 'http',
+                  'urlbase': '/test',
+                  'subdomain': None,
+                  'group_id': None,
+                  'external_port': 80,
+                  'internal_host': 'test-host',
+                  'internal_port': 8000
+                  }
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
+        ph.process_config(config)
+        backend = ph.get_backend('unit-mock-0')
+        assert backend.name == 'unit-mock-0'
+        assert backend.config_block['configs'] != []
+
     def test_enable_stats(self, ph):
+        # Can't enable if FE is in use
         fe9000 = ph.get_frontend(9000)
         assert fe9000.port == '9000'
         assert fe9000.name == 'relation-9000'
         assert ph.enable_stats() is False
+        # Can enable if FE is available
         fe9000.port = 0
         assert ph.enable_stats() is True
+        festats = ph.get_frontend(9000)
+        assert festats.name == 'stats'
+
+    def test_disable_sats(self, ph):
+        # 9k FE is Stats after enable
+        assert ph.enable_stats() is True
+        fe9000 = ph.get_frontend(9000)
+        assert fe9000.name == 'stats'
+        # 9k FE is not Stats after disable
+        ph.disable_stats()
+        fe9000 = ph.get_frontend(9000)
+        assert fe9000.name == 'relation-9000'
 
     def test_available_fort_http(self, ph, monkeypatch):
         config = {'mode': 'http',
@@ -159,6 +207,81 @@ class TestLibhaproxy():
         fe9000 = ph.get_frontend(9000)
         assert ph.available_for_tcp(fe9000, 'unit-mock-0') is False
         assert ph.available_for_tcp(fe9000, 'unit-mock-1') is False
+
+    def test_clean_config(self, ph, monkeypatch):
+        config = {'mode': 'http',
+                  'urlbase': '/test',
+                  'subdomain': None,
+                  'group_id': None,
+                  'external_port': 80,
+                  'internal_host': 'test-host',
+                  'internal_port': 8000
+                  }
+        # Test adding and removing single unit
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
+        remote_unit, backend_name = ph.get_config_names(config)
+        ph.process_config(config)
+        assert ph.get_frontend(80, create=False) is not None
+        ph.clean_config(remote_unit, backend_name)
+        assert ph.get_frontend(80, create=False) is None
+        # Setup mulpitle units to test with
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
+        assert ph.process_config(config)['cfg_good'] is True
+        unit_0, backend_0 = ph.get_config_names(config)
+        ph.process_config(config)
+
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')
+        unit_1, backend_1 = ph.get_config_names(config)
+        ph.process_config(config)
+
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/2')
+        config['group_id'] = 'test-group'
+        unit_2, backend_2 = ph.get_config_names(config)
+        ph.process_config(config)
+
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/3')
+        unit_3, backend_3 = ph.get_config_names(config)
+        ph.process_config(config)
+        assert backend_2 == backend_3
+
+        assert ph.get_frontend(80, create=False) is not None
+        fe = ph.get_frontend(80, create=False)
+        assert len(fe.config_block['usebackends']) == 4
+        assert ph.get_backend(backend_0, create=False) is not None
+        assert ph.get_backend(backend_1, create=False) is not None
+        assert ph.get_backend(backend_2, create=False) is not None
+        assert ph.get_backend(backend_3, create=False) is not None
+
+        # Remove 1 of the grouped backends and re-check
+        ph.clean_config(unit_3, backend_3)
+        assert len(fe.config_block['usebackends']) == 3
+        assert ph.get_backend(backend_0, create=False) is not None
+        assert ph.get_backend(backend_1, create=False) is not None
+        assert ph.get_backend(backend_2, create=False) is not None
+        assert ph.get_backend(backend_3, create=False) is not None
+
+        # Remove the other and check that the group is now gone
+        ph.clean_config(unit_2, backend_2)
+        assert len(fe.config_block['usebackends']) == 2
+        assert ph.get_backend(backend_0, create=False) is not None
+        assert ph.get_backend(backend_1, create=False) is not None
+        assert ph.get_backend(backend_2, create=False) is None
+        assert ph.get_backend(backend_3, create=False) is None
+
+        # Remove another backend
+        ph.clean_config(unit_1, backend_1)
+        assert len(fe.config_block['usebackends']) == 1
+        assert ph.get_backend(backend_0, create=False) is not None
+        assert ph.get_backend(backend_1, create=False) is None
+        assert ph.get_backend(backend_2, create=False) is None
+        assert ph.get_backend(backend_3, create=False) is None
+
+        # Remove final backend and frontend
+        ph.clean_config(unit_0, backend_0)
+        assert ph.get_backend(backend_0, create=False) is None
+        assert ph.get_backend(backend_1, create=False) is None
+        assert ph.get_backend(backend_2, create=False) is None
+        assert ph.get_backend(backend_3, create=False) is None
 
     def test_merge_letsencrypt_cert(self, ph, cert):
         assert not os.path.isfile(ph.cert_file)
