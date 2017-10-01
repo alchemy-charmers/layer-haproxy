@@ -4,6 +4,15 @@ import mock
 
 
 @pytest.fixture
+def mock_crontab(monkeypatch):
+    mock_cron = mock.MagicMock()
+    monkeypatch.setattr('libhaproxy.CronTab', mock_cron)
+    monkeypatch.setattr('libhaproxy.hookenv.local_unit', lambda: 'mock-local/0')
+    monkeypatch.setattr('libhaproxy.hookenv.charm_dir', lambda: '/mock/charm/dir')
+    return mock_cron
+
+
+@pytest.fixture
 def cert(monkeypatch):
     normal_open = open
 
@@ -28,11 +37,22 @@ def cert(monkeypatch):
 
 
 @pytest.fixture
-def mock_layers():
+def mock_layers(monkeypatch):
     import sys
-    sys.modules["charms.layer"] = mock.MagicMock()
-    sys.modules["reactive"] = mock.MagicMock()
-    sys.modules["reactive.letsencrypt"] = mock.MagicMock()
+    sys.modules["charms.layer"] = mock.Mock()
+    sys.modules["reactive"] = mock.Mock()
+    sys.modules["reactive.letsencrypt"] = mock.Mock()
+    monkeypatch.setattr('libhaproxy.letsencrypt.register_domains', lambda: 0)
+    monkeypatch.setattr('libhaproxy.letsencrypt.renew', mock.Mock())
+
+    def options(layer):
+        if layer == 'letsencrypt':
+            options = {'port': 9999}
+            return options
+        else:
+            return None
+
+    monkeypatch.setattr('libhaproxy.layer.options', options)
 
 
 @pytest.fixture
@@ -67,22 +87,27 @@ def mock_remote_unit(monkeypatch):
 @pytest.fixture
 def mock_ports(monkeypatch, open_ports=''):
 
-    def wrapper(*args, **kwargs):
+    def mports(*args, **kwargs):
         if args[0][0] == "opened-ports":
-            return bytes(wrapper.open_ports, encoding='utf8')
+            return bytes(mports.open_ports, encoding='utf8')
         elif args[0][0] == "open-port":
-            wrapper.open_ports = wrapper.open_ports + args[0][1].lower() + '\n'
-            return bytes(wrapper.open_ports, encoding='utf8')
+            if args[0][1].lower() not in mports.open_ports:
+                mports.open_ports = mports.open_ports + args[0][1].lower() + '\n'
+            return bytes(mports.open_ports, encoding='utf8')
         elif args[0][0] == "close-port":
-            wrapper.open_ports.replace(args[0][1], '')
-            return bytes(wrapper.open_ports, encoding='utf8')
+            mports.open_ports = mports.open_ports.replace(args[0][1].lower() + '\n', '')
+            return bytes(mports.open_ports, encoding='utf8')
         else:
             print("called with: {}".format(args[0]))
             return None
-    wrapper.open_ports = open_ports
+    mports.open_ports = open_ports
 
-    monkeypatch.setattr('libhaproxy.subprocess.check_output', wrapper)
-    monkeypatch.setattr('libhaproxy.subprocess.check_call', wrapper)
+    monkeypatch.setattr('libhaproxy.subprocess.check_output', mports)
+    monkeypatch.setattr('libhaproxy.subprocess.check_call', mports)
+    # monkeypatch.setattr('libhaproxy.subprocess.check_output',
+    #                     mock.Mock(spec=mports, wraps=mports))
+    # monkeypatch.setattr('libhaproxy.subprocess.check_call',
+    #                     mock.Mock(spec=mports, wraps=mports))
 
 
 @pytest.fixture

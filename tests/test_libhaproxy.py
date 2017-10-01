@@ -14,10 +14,6 @@ class TestLibhaproxy():
 
     def test_proxy_config(self, ph):
         ''' Check that default proxy config can be read '''
-        # This will work after upgrading to a new pyhaproxy
-        # default_options = ['httplog', 'dontlognull']
-        # for option in ph.proxy_config.defaults[0].options():
-        #     assert option.keyword in default_options
         default_options = [('httplog', ''), ('dontlognull', '')]
         for option in ph.proxy_config.defaults[0].options():
             assert option in default_options
@@ -283,6 +279,59 @@ class TestLibhaproxy():
         assert ph.get_backend(backend_2, create=False) is None
         assert ph.get_backend(backend_3, create=False) is None
 
+    def test_save_config(self, ph, monkeypatch):
+        import os
+        initial_time = os.path.getmtime(ph.proxy_config_file)
+        # Modify config should change mtime
+        config = {'mode': 'http',
+                  'urlbase': '/test',
+                  'subdomain': None,
+                  'group_id': None,
+                  'external_port': 80,
+                  'internal_host': 'test-host',
+                  'internal_port': 8000
+                  }
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
+        ph.process_config(config)
+        time2 = os.path.getmtime(ph.proxy_config_file)
+        assert initial_time != time2
+
+    def test_update_ports(self, ph, monkeypatch):
+        import sys
+        config = {'mode': 'http',
+                  'urlbase': '/test',
+                  'subdomain': None,
+                  'group_id': None,
+                  'external_port': 80,
+                  'internal_host': 'test-host',
+                  'internal_port': 8000
+                  }
+        mports = sys.modules['libhaproxy'].subprocess.check_output
+        # Check that ports start empty and dont' change on update_ports
+        # print(dir(mports))
+        # print(mports.configure_mock())
+        # print(mports.open_ports.return_value)
+        assert mports.open_ports == ''
+        ph.update_ports()
+        assert mports.open_ports == ''
+        # Ading a port opens it
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
+        unit_0, backend_0 = ph.get_config_names(config)
+        ph.process_config(config)
+        ph.update_ports()
+        assert mports.open_ports == '80/tcp\n'
+        # Duplicate ports aren't added
+        ph.get_frontend(80)
+        ph.update_ports()
+        assert mports.open_ports == '80/tcp\n'
+        # If ports are removed, they get added back
+        mports.open_ports = ''
+        ph.update_ports()
+        assert mports.open_ports == '80/tcp\n'
+        # If a frontend is removed, so is the port
+        ph.clean_config(unit_0, backend_0)
+        assert mports.open_ports == ''
+
     def test_merge_letsencrypt_cert(self, ph, cert):
         assert not os.path.isfile(ph.cert_file)
         ph.merge_letsencrypt_cert()
@@ -290,3 +339,158 @@ class TestLibhaproxy():
         with open(ph.cert_file, 'r') as cert_file:
             assert cert_file.readline() == 'fullchain.pem\n'
             assert cert_file.readline() == 'privkey.pem\n'
+
+    def test_add_cron(self, ph, mock_crontab):
+        action = 'test-action'
+        interval = 'test-interval'
+        # Collect CronTab calls from add and remove
+        ph.add_cron(action, interval)
+        ph.remove_cron(action)
+        calls = {}
+        for call in mock_crontab.mock_calls:
+            name, args, kwargs = call
+            calls[name] = {'args': args, 'kwargs': kwargs}
+
+        # Check add cron calls CronTab with expected action and interval
+        assert calls['().new']['kwargs']['command'].split('/')[-1] == action
+        assert interval in calls['().new().setall']['args']
+        # Check that add and remove use same comment
+        assert calls['().new']['kwargs']['comment'] == calls['().find_comment']['args'][0]
+
+    def test_cert_cron(self, ph, mock_crontab):
+        action = 'renew-cert'
+        interval = '@daily'
+        ph.add_cert_cron()
+        ph.remove_cert_cron()
+        calls = {}
+        for call in mock_crontab.mock_calls:
+            name, args, kwargs = call
+            calls[name] = {'args': args, 'kwargs': kwargs}
+
+        # Check add cron calls CronTab with expected action and interval
+        assert calls['().new']['kwargs']['command'].split('/')[-1] == action
+        assert interval in calls['().new().setall']['args']
+        # Check that add and remove use same comment
+        assert calls['().new']['kwargs']['comment'] == calls['().find_comment']['args'][0]
+
+    def test_upnp_cron(self, ph, mock_crontab):
+        action = 'renew-upnp'
+        interval = '@hourly'
+        ph.add_upnp_cron()
+        ph.remove_upnp_cron()
+        calls = {}
+        for call in mock_crontab.mock_calls:
+            name, args, kwargs = call
+            calls[name] = {'args': args, 'kwargs': kwargs}
+
+        # Check add cron calls CronTab with expected action and interval
+        assert calls['().new']['kwargs']['command'].split('/')[-1] == action
+        assert interval in calls['().new().setall']['args']
+        # Check that add and remove use same comment
+        assert calls['().new']['kwargs']['comment'] == calls['().find_comment']['args'][0]
+
+    def test_enable_letsencrypt(self, ph, cert, mock_crontab):
+        ph.enable_letsencrypt()
+        fe80 = ph.get_frontend(80, create=False)
+        fe443 = ph.get_frontend(443, create=False)
+        assert fe80.config_block['acls'][0].name == 'letsencrypt'
+        assert fe80.config_block['usebackends'][0].backend_name == 'letsencrypt-backend'
+        assert 'mock.pem' in fe443.config_block['binds'][0].attributes[0]
+        assert fe443.config_block['acls'][0].name == 'letsencrypt'
+        assert fe443.config_block['usebackends'][0].backend_name == 'letsencrypt-backend'
+        assert 'reqirep' in fe443.config_block['configs'][0][0]
+
+    def test_disable_letsencrypt(self, ph, cert, mock_crontab, monkeypatch):
+        # Remove letsencrypt and all unused sections
+        ph.enable_letsencrypt()
+        assert ph.get_frontend(80, create=False) is not None
+        assert ph.get_frontend(443, create=False) is not None
+        assert ph.get_backend('letsencrypt-backend', create=False) is not None
+        ph.disable_letsencrypt()
+        assert ph.get_frontend(80, create=False) is None
+        assert ph.get_frontend(443, create=False) is None
+        assert ph.get_backend('letsencrypt-backend', create=False) is None
+
+        # Remove letsencrypt but not other frontends
+        ph.enable_letsencrypt()
+        config = {'mode': 'http',
+                  'urlbase': '/test',
+                  'subdomain': None,
+                  'group_id': None,
+                  'external_port': 80,
+                  'internal_host': 'test-host',
+                  'internal_port': 8000
+                  }
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
+        ph.process_config(config)
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')
+        config['external_port'] = 443
+        ph.process_config(config)
+        ph.disable_letsencrypt()
+        fe80 = ph.get_frontend(80, create=False)
+        fe443 = ph.get_frontend(443, create=False)
+        assert fe80.config_block['acls'][0].name == 'unit-mock-0'
+        assert fe80.config_block['usebackends'][0].backend_name == 'unit-mock-0'
+        assert fe443.config_block['binds'][0].attributes == []
+        assert fe443.config_block['acls'][0].name == 'unit-mock-1'
+        assert fe443.config_block['usebackends'][0].backend_name == 'unit-mock-1'
+        assert fe443.config_block['configs'] == []
+        assert ph.get_backend('letsencrypt-backend', create=False) is None
+
+    def test_renew_cert(self, ph, monkeypatch):
+        import mock
+        mocks = {'disable': mock.Mock(), 'enable': mock.Mock(), 'renew':
+                 mock.Mock(), 'merge': mock.Mock()}
+        monkeypatch.setattr(ph, 'disable_letsencrypt', mocks['disable'])
+        monkeypatch.setattr(ph, 'enable_letsencrypt', mocks['enable'])
+        monkeypatch.setattr('libhaproxy.letsencrypt.renew', mocks['renew'])
+        monkeypatch.setattr(ph, 'merge_letsencrypt_cert', mocks['merge'])
+        assert mocks['disable'].call_count == 0
+        assert mocks['enable'].call_count == 0
+        assert mocks['renew'].call_count == 0
+        assert mocks['merge'].call_count == 0
+        ph.renew_cert()
+        assert mocks['disable'].call_count == 1
+        assert mocks['enable'].call_count == 1
+        assert mocks['renew'].call_count == 0
+        assert mocks['merge'].call_count == 0
+        ph.renew_cert(full=False)
+        assert mocks['disable'].call_count == 1
+        assert mocks['enable'].call_count == 1
+        assert mocks['renew'].call_count == 1
+        assert mocks['merge'].call_count == 1
+
+    def test_renew_upnp(self, ph):
+        import mock
+        with mock.patch('libhaproxy.subprocess.check_call') as mockports:
+            ph.renew_upnp()
+            assert mockports.call_count == 0
+        ph.get_frontend(80)
+        ph.get_frontend(90)
+        ph.update_ports()
+        with mock.patch('libhaproxy.subprocess.check_call') as mockports:
+            ph.renew_upnp()
+            assert mockports.call_count == 2
+        ph.get_frontend(8080)
+        ph.update_ports()
+        with mock.patch('libhaproxy.subprocess.check_call') as mockports:
+            ph.renew_upnp()
+            assert mockports.call_count == 3
+
+    def test_release_upnp(self, ph):
+        import mock
+        with mock.patch('libhaproxy.subprocess.check_call') as mockports:
+            ph.release_upnp()
+            assert mockports.call_count == 0
+        ph.get_frontend(80)
+        ph.get_frontend(90)
+        ph.update_ports()
+        with mock.patch('libhaproxy.subprocess.check_call') as mockports:
+            ph.release_upnp()
+            assert mockports.call_count == 2
+        ph.get_frontend(8080)
+        ph.update_ports()
+        with mock.patch('libhaproxy.subprocess.check_call') as mockports:
+            ph.release_upnp()
+            assert mockports.call_count == 3
+
