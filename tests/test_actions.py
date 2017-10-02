@@ -1,9 +1,9 @@
 import mock
+import imp
 
 
 class TestActions():
-    def test_renew_cert(self, ph, cert, mock_crontab, monkeypatch):
-        import imp
+    def test_renew_cert(self, ph, monkeypatch):
         mocks = {'disable': mock.Mock(), 'enable': mock.Mock(), 'renew':
                  mock.Mock(), 'merge': mock.Mock()}
         monkeypatch.setattr(ph, 'disable_letsencrypt', mocks['disable'])
@@ -36,3 +36,10 @@ class TestActions():
         assert mocks['enable'].call_count == 1
         assert mocks['renew'].call_count == 2
         assert mocks['merge'].call_count == 2
+
+    def test_renew_upnp(self, ph, monkeypatch):
+        mock_renew = mock.Mock()
+        monkeypatch.setattr(ph, 'renew_upnp', mock_renew)
+        assert mock_renew.call_count == 0
+        imp.load_source('renew_upnp', './actions/renew-upnp')
+        assert mock_renew.call_count == 1

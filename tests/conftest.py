@@ -8,7 +8,7 @@ def mock_crontab(monkeypatch):
     mock_cron = mock.MagicMock()
     monkeypatch.setattr('libhaproxy.CronTab', mock_cron)
     monkeypatch.setattr('libhaproxy.hookenv.local_unit', lambda: 'mock-local/0')
-    monkeypatch.setattr('libhaproxy.hookenv.charm_dir', lambda: '/mock/charm/dir')
+    # monkeypatch.setattr('libhaproxy.hookenv.charm_dir', lambda: '/mock/charm/dir')
     return mock_cron
 
 
@@ -98,7 +98,7 @@ def mock_ports(monkeypatch, open_ports=''):
             mports.open_ports = mports.open_ports.replace(args[0][1].lower() + '\n', '')
             return bytes(mports.open_ports, encoding='utf8')
         else:
-            print("called with: {}".format(args[0]))
+            print("subprocess called with: {}".format(args[0]))
             return None
     mports.open_ports = open_ports
 
@@ -126,7 +126,12 @@ def pyhaproxy(mock_layers, mock_hookenv_config):
 
 
 @pytest.fixture
-def ph(pyhaproxy, tmpdir, mock_ports, mock_service_reload, monkeypatch):
+def mock_charm_dir(monkeypatch):
+    monkeypatch.setattr('libhaproxy.hookenv.charm_dir', lambda: '/mock/charm/dir')
+
+
+@pytest.fixture
+def ph(pyhaproxy, tmpdir, mock_ports, mock_service_reload, mock_charm_dir, monkeypatch):
     from libhaproxy import ProxyHelper
     ph = ProxyHelper()
 
@@ -144,10 +149,3 @@ def ph(pyhaproxy, tmpdir, mock_ports, mock_service_reload, monkeypatch):
     monkeypatch.setattr('libhaproxy.ProxyHelper', lambda: ph)
 
     return ph
-
-
-# @pytest.fixture
-# def proxyHelper(ph, monkeypatch, cert):
-#     monkeypatch.setattr('libhaproxy.ProxyHelper', lambda: ph)
-#     # monkeypatch.setattr('libhaproxy.hookenv.action_get', lambda x: False)
-#     return ph
