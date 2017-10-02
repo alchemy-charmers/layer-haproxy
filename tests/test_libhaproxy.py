@@ -493,4 +493,3 @@ class TestLibhaproxy():
         with mock.patch('libhaproxy.subprocess.check_call') as mockports:
             ph.release_upnp()
             assert mockports.call_count == 3
-
