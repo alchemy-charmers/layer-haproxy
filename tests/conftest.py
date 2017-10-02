@@ -104,6 +104,7 @@ def mock_ports(monkeypatch, open_ports=''):
 
     monkeypatch.setattr('libhaproxy.subprocess.check_output', mports)
     monkeypatch.setattr('libhaproxy.subprocess.check_call', mports)
+    # Wrapping hides the open_ports attribute
     # monkeypatch.setattr('libhaproxy.subprocess.check_output',
     #                     mock.Mock(spec=mports, wraps=mports))
     # monkeypatch.setattr('libhaproxy.subprocess.check_call',
@@ -125,8 +126,7 @@ def pyhaproxy(mock_layers, mock_hookenv_config):
 
 
 @pytest.fixture
-# def ph(mock_layers, mock_hookenv_config, tmpdir, mock_ports,
-def ph(pyhaproxy, tmpdir, mock_ports, mock_service_reload):
+def ph(pyhaproxy, tmpdir, mock_ports, mock_service_reload, monkeypatch):
     from libhaproxy import ProxyHelper
     ph = ProxyHelper()
 
@@ -140,4 +140,14 @@ def ph(pyhaproxy, tmpdir, mock_ports, mock_service_reload):
     crt_file = tmpdir.join("mock.pem")
     ph.cert_file = crt_file.strpath
 
+    # Any other functions that load PH will get this version
+    monkeypatch.setattr('libhaproxy.ProxyHelper', lambda: ph)
+
     return ph
+
+
+# @pytest.fixture
+# def proxyHelper(ph, monkeypatch, cert):
+#     monkeypatch.setattr('libhaproxy.ProxyHelper', lambda: ph)
+#     # monkeypatch.setattr('libhaproxy.hookenv.action_get', lambda x: False)
+#     return ph
