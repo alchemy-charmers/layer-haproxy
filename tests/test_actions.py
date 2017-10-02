@@ -29,12 +29,10 @@ class TestActions():
         assert mocks['enable'].call_count == 1
         assert mocks['renew'].call_count == 1
         assert mocks['merge'].call_count == 1
-        # Test exception which juju-run will give
-        monkeypatch.setattr('libhaproxy.hookenv.action_get', lambda x: Exception)
+        # Test exception which juju-run will cause
+        monkeypatch.setattr('libhaproxy.hookenv.action_get', lambda x: 1 / 0)
         imp.load_source('renew_cert', './actions/renew-cert')
         assert mocks['disable'].call_count == 1
         assert mocks['enable'].call_count == 1
         assert mocks['renew'].call_count == 2
         assert mocks['merge'].call_count == 2
-
-        assert 0
