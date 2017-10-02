@@ -2,6 +2,18 @@
 import pytest
 import mock
 
+import os
+import sys
+import subprocess
+if not os.path.isfile('./tests/.2to3'):
+    import pyhaproxy
+    module_path = os.path.dirname(pyhaproxy.__file__)
+    del sys.modules['pyhaproxy']
+    del pyhaproxy
+    subprocess.check_call('2to3-3.5 -w {}'.format(module_path), shell=True)
+    import pyhaproxy
+    open('./tests/.2to3', 'a')
+
 
 @pytest.fixture
 def mock_crontab(monkeypatch):
@@ -111,18 +123,18 @@ def mock_ports(monkeypatch, open_ports=''):
     #                     mock.Mock(spec=mports, wraps=mports))
 
 
-@pytest.fixture
-def pyhaproxy(mock_layers, mock_hookenv_config):
-    import os
-    import sys
-    import subprocess
-    if 'pyhaproxy' not in sys.modules.keys():
-        import pyhaproxy
-        module_path = os.path.dirname(pyhaproxy.__file__)
-        del sys.modules['pyhaproxy']
-        del pyhaproxy
-        subprocess.check_call('2to3-3.5 -w {}'.format(module_path), shell=True)
-        import pyhaproxy
+# @pytest.fixture
+# def pyhaproxy(mock_layers, mock_hookenv_config):
+#     import os
+#     import sys
+#     import subprocess
+#     if 'pyhaproxy' not in sys.modules.keys():
+#         import pyhaproxy
+#         module_path = os.path.dirname(pyhaproxy.__file__)
+#         del sys.modules['pyhaproxy']
+#         del pyhaproxy
+#         subprocess.check_call('2to3-3.5 -w {}'.format(module_path), shell=True)
+#         import pyhaproxy
 
 
 @pytest.fixture
@@ -131,7 +143,8 @@ def mock_charm_dir(monkeypatch):
 
 
 @pytest.fixture
-def ph(pyhaproxy, tmpdir, mock_ports, mock_service_reload, mock_charm_dir, monkeypatch):
+# def ph(pyhaproxy, tmpdir, mock_ports, mock_service_reload, mock_charm_dir, monkeypatch):
+def ph(tmpdir, mock_layers, mock_hookenv_config, mock_ports, mock_service_reload, mock_charm_dir, monkeypatch):
     from libhaproxy import ProxyHelper
     ph = ProxyHelper()
 
