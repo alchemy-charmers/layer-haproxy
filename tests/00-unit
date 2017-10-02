@@ -1,0 +1,3 @@
+#!/bin/bash
+
+tox -c tox_unit.ini -v

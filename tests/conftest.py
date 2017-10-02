@@ -5,14 +5,15 @@ import mock
 import os
 import sys
 import subprocess
-if not os.path.isfile('./tests/.2to3'):
-    import pyhaproxy
-    module_path = os.path.dirname(pyhaproxy.__file__)
+# if not os.path.isfile('./tests/.2to3'):
+import pyhaproxy
+module_path = os.path.dirname(pyhaproxy.__file__)
+if not os.path.isfile(module_path + '/.2to3'):
     del sys.modules['pyhaproxy']
     del pyhaproxy
     subprocess.check_call('2to3-3.5 -w {}'.format(module_path), shell=True)
     import pyhaproxy
-    open('./tests/.2to3', 'a')
+    open(module_path + '/.2to3', 'a')
 
 
 @pytest.fixture
