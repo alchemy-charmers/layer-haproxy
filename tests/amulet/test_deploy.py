@@ -3,6 +3,7 @@
 import pytest
 import amulet
 import requests
+import time
 
 
 @pytest.fixture(scope="module")
@@ -20,6 +21,17 @@ def unit(deploy):
     return deploy.sentry['haproxy'][0]
 
 
+@pytest.fixture()
+def nostats(deploy):
+    print("Disabling stats")
+    deploy.configure('haproxy', {'enable-stats': False})
+    time.sleep(10)
+    yield
+    print("Re-enabling stats")
+    deploy.configure('haproxy', {'enable-stats': True})
+    time.sleep(10)
+
+
 class TestHaproxy():
     # @classmethod
     # def setup_class(self):
@@ -33,51 +45,29 @@ class TestHaproxy():
 
     #     self.unit = self.d.sentry['haproxy'][0]
 
-    def test_stats(self, deploy, unit):
+    def test_wrong_login(self, deploy, unit):
         # Wrong log/pass is rejected
-        # self.assertRaises(requests.exceptions.ConnectionError,
-        deploy.configure('haproxy', {'enable-stats': True})
         deploy.sentry.wait()
         page = requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
                             auth=requests.auth.HTTPBasicAuth('admin', 'fail')
                             )
         assert page.status_code == 401
 
-        # with self.assertRaises(Exception):
-        #    page = requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
-        #                        auth=requests.auth.HTTPBasicAuth('admin', 'fail')
-        #                        )
-        # self.assertRaises(Exception,
-        #                   requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
-        #                                auth=requests.auth.HTTPBasicAuth('admin', 'fail')
-        #                                )
-        #                   )
-
+    def test_right_login(self, deploy, unit):
         # Correct log/pass connects
         page = requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
                             auth=requests.auth.HTTPBasicAuth('admin', 'admin'))
         assert page.status_code == 200
 
+    @pytest.mark.usefixtures("nostats")
+    def test_disable_stats(self, deploy, unit):
         # Disable stats prevents connection
-        deploy.configure('haproxy', {'enable-stats': False})
-        deploy.sentry.wait()
         with pytest.raises(requests.exceptions.ConnectionError):
             page = requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
                                 auth=requests.auth.HTTPBasicAuth('admin', 'admin'),
                                 headers={'Cache-Control': 'no-cache'}
                                 )
             print(page.json)
-        # self.assertRaises(requests.exceptions.ConnectionError,
-        #                   requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
-        #                                auth=requests.auth.HTTPBasicAuth('admin', 'admin')
-        #                                )
-        #                   )
-
-        # page = requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
-        #                     auth=requests.auth.HTTPBasicAuth('admin', 'admin'))
-        # self.assertEqual(page.status_code, 200)
-        deploy.configure('haproxy', {'enable-stats': True})
-        deploy.sentry.wait()
         # test we can access over http
         # page = requests.get('http://{}'.format(self.unit.info['public-address']))
         # self.assertEqual(page.status_code, 200)
