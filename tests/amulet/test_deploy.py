@@ -1,67 +1,83 @@
 #!/usr/bin/python3
 
+import pytest
 import amulet
 import requests
-import unittest
 
 
-class TestHaproxy(unittest.TestCase):
-    def setUp(self):
-        self.d = amulet.Deployment(series='xenial')
+@pytest.fixture(scope="module")
+def deploy():
+    deploy = amulet.Deployment(series='xenial')
+    deploy.add('haproxy')
+    deploy.expose('haproxy')
+    deploy.setup(timeout=900)
+    deploy.sentry.wait()
+    return deploy
 
-        self.d.add('haproxy')
-        self.d.expose('haproxy')
 
-        self.d.setup(timeout=900)
-        self.d.sentry.wait()
+@pytest.fixture(scope="module")
+def unit(deploy):
+    return deploy.sentry['haproxy'][0]
 
-        self.unit = self.d.sentry['haproxy'][0]
 
-    def test_stats(self):
+class TestHaproxy():
+    # @classmethod
+    # def setup_class(self):
+    #     self.d = amulet.Deployment(series='xenial')
+
+    #     self.d.add('haproxy')
+    #     self.d.expose('haproxy')
+
+    #     self.d.setup(timeout=900)
+    #     self.d.sentry.wait()
+
+    #     self.unit = self.d.sentry['haproxy'][0]
+
+    def test_stats(self, deploy, unit):
         # Wrong log/pass is rejected
-        # self.assertRaises(requests.exceptions.ConnectionError, 
-        self.d.configure('haproxy', {'enable-stats': True})
-        self.d.sentry.wait()
-        page = requests.get('http://{}:{}/{}'.format(self.unit.info['public-address'], 9000, 'ha-stats'),
+        # self.assertRaises(requests.exceptions.ConnectionError,
+        deploy.configure('haproxy', {'enable-stats': True})
+        deploy.sentry.wait()
+        page = requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
                             auth=requests.auth.HTTPBasicAuth('admin', 'fail')
                             )
-        self.assertEqual(page.status_code, 401)
-        
+        assert page.status_code == 401
+
         # with self.assertRaises(Exception):
-        #    page = requests.get('http://{}:{}/{}'.format(self.unit.info['public-address'], 9000, 'ha-stats'),
+        #    page = requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
         #                        auth=requests.auth.HTTPBasicAuth('admin', 'fail')
         #                        )
-        # self.assertRaises(Exception, 
-        #                   requests.get('http://{}:{}/{}'.format(self.unit.info['public-address'], 9000, 'ha-stats'),
+        # self.assertRaises(Exception,
+        #                   requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
         #                                auth=requests.auth.HTTPBasicAuth('admin', 'fail')
         #                                )
         #                   )
 
         # Correct log/pass connects
-        page = requests.get('http://{}:{}/{}'.format(self.unit.info['public-address'], 9000, 'ha-stats'),
+        page = requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
                             auth=requests.auth.HTTPBasicAuth('admin', 'admin'))
-        self.assertEqual(page.status_code, 200)
+        assert page.status_code == 200
 
         # Disable stats prevents connection
-        self.d.configure('haproxy', {'enable-stats': False})
-        self.d.sentry.wait()
-        with self.assertRaises(requests.exceptions.ConnectionError):
-            page = requests.get('http://{}:{}/{}'.format(self.unit.info['public-address'], 9000, 'ha-stats'),
+        deploy.configure('haproxy', {'enable-stats': False})
+        deploy.sentry.wait()
+        with pytest.raises(requests.exceptions.ConnectionError):
+            page = requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
                                 auth=requests.auth.HTTPBasicAuth('admin', 'admin'),
                                 headers={'Cache-Control': 'no-cache'}
                                 )
             print(page.json)
-        # self.assertRaises(requests.exceptions.ConnectionError, 
-        #                   requests.get('http://{}:{}/{}'.format(self.unit.info['public-address'], 9000, 'ha-stats'),
+        # self.assertRaises(requests.exceptions.ConnectionError,
+        #                   requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
         #                                auth=requests.auth.HTTPBasicAuth('admin', 'admin')
         #                                )
         #                   )
 
-        # page = requests.get('http://{}:{}/{}'.format(self.unit.info['public-address'], 9000, 'ha-stats'),
+        # page = requests.get('http://{}:{}/{}'.format(unit.info['public-address'], 9000, 'ha-stats'),
         #                     auth=requests.auth.HTTPBasicAuth('admin', 'admin'))
         # self.assertEqual(page.status_code, 200)
-        self.d.configure('haproxy', {'enable-stats': True})
-        self.d.sentry.wait()
+        deploy.configure('haproxy', {'enable-stats': True})
+        deploy.sentry.wait()
         # test we can access over http
         # page = requests.get('http://{}'.format(self.unit.info['public-address']))
         # self.assertEqual(page.status_code, 200)
@@ -74,6 +90,4 @@ class TestHaproxy(unittest.TestCase):
         # - .directory_contents(PATH) - List files and folders in PATH on that unit
         # - .relation(relation, service:rel) - Get relation data from return service
 
-        
-if __name__ == '__main__':
-    unittest.main()
+

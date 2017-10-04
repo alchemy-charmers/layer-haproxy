@@ -5,7 +5,6 @@ import mock
 import os
 import sys
 import subprocess
-# if not os.path.isfile('./tests/.2to3'):
 import pyhaproxy
 module_path = os.path.dirname(pyhaproxy.__file__)
 if not os.path.isfile(module_path + '/.2to3'):
@@ -151,7 +150,7 @@ def ph(tmpdir, mock_layers, mock_hookenv_config, mock_ports, mock_service_reload
 
     # Patch the proxy_config to a tmpfile
     cfg_file = tmpdir.join("haproxy.cfg")
-    with open('./tests/haproxy.cfg', 'r') as src_file:
+    with open('./tests/unit/haproxy.cfg', 'r') as src_file:
         cfg_file.write(src_file.read())
     ph.proxy_config_file = cfg_file.strpath
 
