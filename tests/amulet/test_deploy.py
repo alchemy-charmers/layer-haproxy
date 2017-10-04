@@ -89,5 +89,3 @@ class TestHaproxy():
         # - .directory(PATH) - Get details of directory
         # - .directory_contents(PATH) - List files and folders in PATH on that unit
         # - .relation(relation, service:rel) - Get relation data from return service
-
-

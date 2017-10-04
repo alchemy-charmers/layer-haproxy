@@ -15,7 +15,7 @@ apt_prereqs:
 .PHONY: lint
 lint: apt_prereqs
 	@tox --notest
-	@PATH=.tox/py34/bin:.tox/py35/bin flake8 $(wildcard hooks reactive lib unit_tests tests)
+	@PATH=.tox/amulet/bin flake8 $(wildcard hooks reactive lib unit_tests tests)
 
 .PHONY: unit_test
 unit_test: apt_prereqs
