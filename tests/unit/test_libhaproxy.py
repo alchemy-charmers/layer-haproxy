@@ -308,9 +308,6 @@ class TestLibhaproxy():
                   }
         mports = sys.modules['libhaproxy'].subprocess.check_output
         # Check that ports start empty and dont' change on update_ports
-        # print(dir(mports))
-        # print(mports.configure_mock())
-        # print(mports.open_ports.return_value)
         assert mports.open_ports == ''
         ph.update_ports()
         assert mports.open_ports == ''
@@ -330,6 +327,11 @@ class TestLibhaproxy():
         assert mports.open_ports == '80/tcp\n'
         # If a frontend is removed, so is the port
         ph.clean_config(unit_0, backend_0)
+        assert mports.open_ports == ''
+        # Close stats port if open during update
+        ph.charm_config['enable-stats'] = True
+        ph.enable_stats()
+        ph.update_ports()
         assert mports.open_ports == ''
 
     def test_merge_letsencrypt_cert(self, ph, cert):
