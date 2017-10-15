@@ -266,8 +266,12 @@ class ProxyHelper():
                     hookenv.log("Port already open {}".format(frontend.port), "DEBUG")
                     opened_ports.remove(frontend.port)
             else:
-                hookenv.log("Opening {}".format(frontend.port), "DEBUG")
-                hookenv.open_port(frontend.port)
+                if self.charm_config['enable-stats'] and self.charm_config['stats-local'] and\
+                   self.charm_config['stats-port'] == int(frontend.port):
+                    hookenv.log("Not opening stats port {}".format(frontend.port), "DEBUG")
+                else:
+                    hookenv.log("Opening {}".format(frontend.port), "DEBUG")
+                    hookenv.open_port(frontend.port)
         for port in opened_ports:
             if port:
                 hookenv.log("Closing port {}".format(port), "DEBUG")

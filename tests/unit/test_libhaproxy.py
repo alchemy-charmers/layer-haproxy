@@ -331,7 +331,10 @@ class TestLibhaproxy():
         # Close stats port if open during update
         ph.charm_config['enable-stats'] = True
         ph.enable_stats()
+        assert mports.open_ports == ''
+        print(mports.open_ports)
         ph.update_ports()
+        print(mports.open_ports)
         assert mports.open_ports == ''
 
     def test_merge_letsencrypt_cert(self, ph, cert):
