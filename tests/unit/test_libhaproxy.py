@@ -141,9 +141,25 @@ class TestLibhaproxy():
 
     def test_enable_redirect(self, ph):
         ph.enable_redirect()
+        fe80 = ph.get_frontend(80)
+        assert fe80.port == '80'
+        default = None
+        for ub in fe80.config_block['usebackends']:
+            if ub.backend_name == 'redirect':
+                default = ub
+        assert default is not None
+        assert default.is_default is True
+        beRedirect = ph.get_backend('redirect', create=False)
+        assert beRedirect is not None
 
     def test_disable_redirect(self, ph):
+        # Enable redirect
+        self.test_enable_redirect(ph)
         ph.disable_redirect()
+        fe80 = ph.get_frontend(80, create=False)
+        assert fe80 is None
+        beRedirect = ph.get_backend('redirect', create=False)
+        assert beRedirect is None
 
     def test_available_fort_http(self, ph, monkeypatch):
         config = {'mode': 'http',

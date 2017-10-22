@@ -39,4 +39,7 @@ options:
     type: boolean
     default: True
     description: "Rewrite 'Destination' header so WebDav servers wont fail on mismatched file paths (http vs https)"
-
+  enable-https-redirect:
+    type: boolean
+    default: True
+    description: "Redirect http requets with no explicit backend to https"

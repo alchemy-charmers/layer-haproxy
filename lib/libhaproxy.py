@@ -173,12 +173,45 @@ class ProxyHelper():
             self.save_config()
 
     def enable_redirect(self, save=True):
+        backend_name = 'redirect'
+
         # remove any prevoius configureation
         self.disable_redirect(save=False)
 
+        # Get or create frontend 80
+        frontend = self.get_frontend(port=80)
+
+        # Add use_backend section to the frontend
+        use_backend = Config.UseBackend(backend_name=backend_name,
+                                        operator='',
+                                        backend_condition='',
+                                        is_default=True)
+        frontend.usebackends().append(use_backend)
+
+        # Get the backend, create if not present
+        backend = self.get_backend(backend_name)
+
+        # Add redirect option to the backend
+        redirect_option = ('redirect scheme https', '')
+        backend.config_block['options'].append(redirect_option)
+
+        # Add server so clean won't remove it
+        server = Config.Server(name=backend_name, host='dummy', port='dummy')
+        backend.servers().append(server)
+
+        # Render new cfg file
+        if save:
+            self.save_config()
+
     def disable_redirect(self, save=True):
-        # TODO: Implemnt removal
-        pass
+        backend_name = 'redirect'
+
+        # Remove the redirect backend
+        for fe in self.proxy_config.frontends:
+            fe.config_block['usebackends'] = [ub for ub in fe.usebackends() if ub.backend_name != backend_name]
+
+        # Clean the config
+        self.clean_config(unit=backend_name, backend_name=backend_name, save=save)
 
     def get_frontend(self, port=None, create=True):
         port = str(port)

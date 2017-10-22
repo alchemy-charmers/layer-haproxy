@@ -46,6 +46,8 @@ def configure_haproxy():
         ph.enable_letsencrypt()
     if ph.charm_config['enable-upnp']:
         ph.add_upnp_cron()
+    if ph.charm_config['enable-https-redirect']:
+        ph.enable_redirect()
     ph.add_timeout_tunnel()
     hookenv.status_set('active', '')
     set_state('haproxy.configured')
@@ -137,6 +139,16 @@ def cert_interval_changed():
     ph.remove_cert_cron()
     if ph.charm_config['enable-letsencrypt']:
         ph.add_cert_cron()
+
+
+@when('config.changed.enable-https-redirect')
+def redirect_changed():
+    if hookenv.hook_name() == "install":
+        return
+    if ph.charm_config['enable-https-redirect']:
+        ph.enable_redirect()
+    else:
+        ph.disable_redirect()
 
 
 @hook('stop')
