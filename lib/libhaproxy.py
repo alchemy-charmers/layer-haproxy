@@ -192,11 +192,11 @@ class ProxyHelper():
         backend = self.get_backend(backend_name)
 
         # Add redirect option to the backend
-        redirect_option = ('redirect scheme https', '')
-        backend.config_block['options'].append(redirect_option)
+        redirect_config = ('redirect scheme https', '')
+        backend.config_block['configs'].append(redirect_config)
 
         # Add server so clean won't remove it
-        server = Config.Server(name=backend_name, host='dummy', port='dummy')
+        server = Config.Server(name=backend_name, host='dummy', port=0)
         backend.servers().append(server)
 
         # Render new cfg file
