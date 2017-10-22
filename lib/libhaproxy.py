@@ -196,7 +196,7 @@ class ProxyHelper():
         backend.config_block['configs'].append(redirect_config)
 
         # Add server so clean won't remove it
-        server = Config.Server(name=backend_name, host='dummy', port=0)
+        server = Config.Server(name=backend_name, host='127.0.0.1', port=0)
         backend.servers().append(server)
 
         # Render new cfg file
