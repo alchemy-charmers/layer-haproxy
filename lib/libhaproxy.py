@@ -172,6 +172,14 @@ class ProxyHelper():
         if save:
             self.save_config()
 
+    def enable_redirect(self, save=True):
+        # remove any prevoius configureation
+        self.disable_redirect(save=False)
+
+    def disable_redirect(self, save=True):
+        # TODO: Implemnt removal
+        pass
+
     def get_frontend(self, port=None, create=True):
         port = str(port)
         frontend = None

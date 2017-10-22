@@ -139,6 +139,12 @@ class TestLibhaproxy():
         fe9000 = ph.get_frontend(9000)
         assert fe9000.name == 'relation-9000'
 
+    def test_enable_redirect(self, ph):
+        ph.enable_redirect()
+
+    def test_disable_redirect(self, ph):
+        ph.disable_redirect()
+
     def test_available_fort_http(self, ph, monkeypatch):
         config = {'mode': 'http',
                   'urlbase': '/test',
