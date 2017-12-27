@@ -1,0 +1,15 @@
+[submodule "layers/layer-version"]
+	path = layers/layer-version
+	url = https://github.com/chris-sanders/layer-version.git
+[submodule "layers/layer-hostname"]
+	path = layers/layer-hostname
+	url = https://github.com/chris-sanders/layer-hostname.git
+[submodule "layers/layer-upnp"]
+	path = layers/layer-upnp
+	url = https://github.com/chris-sanders/layer-upnp.git
+[submodule "layers/layer-letsencrypt"]
+	path = layers/layer-letsencrypt
+	url = https://github.com/chris-sanders/layer-letsencrypt.git
+[submodule "interfaces/interface-reverseproxy"]
+	path = interfaces/interface-reverseproxy
+	url = https://github.com/chris-sanders/interface-reverseproxy.git
