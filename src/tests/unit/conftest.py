@@ -10,7 +10,7 @@ module_path = os.path.dirname(pyhaproxy.__file__)
 if not os.path.isfile(module_path + '/.2to3'):
     del sys.modules['pyhaproxy']
     del pyhaproxy
-    subprocess.check_call('2to3-3.5 -w {}'.format(module_path), shell=True)
+    subprocess.check_call('2to3 -w {}'.format(module_path), shell=True)
     import pyhaproxy
     open(module_path + '/.2to3', 'a')
 

@@ -10,7 +10,7 @@ import errno
 try:
     from libhaproxy import ProxyHelper
 except:
-    subprocess.check_call('2to3-3.5 -w /usr/local/lib/python3.5/dist-packages/pyhaproxy', shell=True)
+    subprocess.check_call('2to3 -w /usr/local/lib/python3.5/dist-packages/pyhaproxy', shell=True)
     from libhaproxy import ProxyHelper
 
 ph = ProxyHelper()
