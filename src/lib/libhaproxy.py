@@ -71,47 +71,66 @@ class ProxyHelper():
             # Add ACL's to the frontend
             if config['urlbase']:
                 acl = Config.Acl(name=remote_unit, value='path_beg {}'.format(config['urlbase']))
-                frontend.acls().append(acl)
+                # frontend.acls().append(acl)
+                frontend.add_acl(acl)
             if config['subdomain']:
                 acl = Config.Acl(name=remote_unit, value='hdr_beg(host) -i {}'.format(config['subdomain']))
-                frontend.acls().append(acl)
+                # frontend.acls().append(acl)
+                frontend.add_acl(acl)
 
             # Add use_backend section to the frontend
             use_backend = Config.UseBackend(backend_name=backend_name,
                                             operator='if',
                                             backend_condition=remote_unit,
                                             is_default=False)
-            frontend.usebackends().append(use_backend)
+            # frontend.usebackends().append(use_backend)
+            frontend.add_usebackend(use_backend)
         if config['mode'] == 'tcp':
             if not self.available_for_tcp(frontend, backend_name):
                 return({"cfg_good": False, "msg": "Frontend already in use can not setup tcp mode"})
 
-            mode_config = ("mode tcp", "")
+            mode_config = Config.Config('mode tcp', '')
             if mode_config not in frontend.configs():
-                frontend.configs().append(mode_config)
+                frontend.add_config(mode_config)
 
             use_backend = Config.UseBackend(backend_name=backend_name,
                                             operator='',
                                             backend_condition='',
                                             is_default=True)
-            frontend.usebackends().append(use_backend)
+            # frontend.usebackends().append(use_backend)
+            frontend.add_usebackend(use_backend)
 
         # Get the backend, create if not present
         backend = self.get_backend(backend_name)
 
         # Add server to the backend
         if config['mode'] == 'http':
-            cookie_config = ('cookie SERVERID insert indirect nocache', '')
-            backend.config_block['configs'].append(cookie_config)
+            # Add cookie config if not already present
+            cookie_config = None
+            cookie = 'cookie SERVERID insert indirect nocache'
+            for test_config in backend.configs():
+                if cookie in test_config.keyword:
+                    cookie_config = config
+            if not cookie_config:
+                cookie_config = Config.Config(cookie, '')
+                backend.add_config(cookie_config)
             attributes = ['cookie {}'.format(remote_unit)]
+            # Add httpchk option if not present
             if config['group_id']:
-                check_option = ('httpchk GET / HTTP/1.0', '')
-                backend.config_block['options'].append(check_option)
+                check_option = None
+                httpchk = 'httpchk GET / HTTP/1.0'
+                for test_option in backend.options():
+                    if httpchk in test_option.keyword:
+                        check_option = test_option
+                if not check_option:
+                    check_option = Config.Option(httpchk, '')
+                    backend.add_option(check_option)
                 attributes.append('check')
         else:
             attributes = ['']
         server = Config.Server(name=remote_unit, host=config['internal_host'], port=config['internal_port'], attributes=attributes)
-        backend.servers().append(server)
+        # backend.servers().append(server)
+        backend.add_server(server)
 
         # Render new cfg file
         self.save_config()
@@ -123,7 +142,7 @@ class ProxyHelper():
         if frontend.name == "stats":
             return False
         for config in frontend.configs():
-            if "mode tcp" in config:
+            if "mode tcp" in config.keyword:
                 return False
         return True
 
@@ -152,14 +171,23 @@ class ProxyHelper():
 
         # Generate new front end for stats
         user_string = '{}:{}'.format(self.charm_config['stats-user'], self.charm_config['stats-passwd'])
-        config_block = ConfigBlock({'binds': [Config.Bind('0.0.0.0', self.charm_config['stats-port'], None)],
-                                    'configs': [('stats enable', ''),
-                                                ('stats auth {}'.format(user_string), ''),
-                                                ('stats uri {}'.format(self.charm_config['stats-url']), '')]
-                                    })
+        config_block = []
+        config_block.append(Config.Bind('0.0.0.0', self.charm_config['stats-port'], None))
+        config_block.append(Config.Config('stats enable', ''))
+        config_block.append(Config.Config('stats auth {}'.format(user_string), ''))
+        config_block.append(Config.Config('stats uri {}'.format(self.charm_config['stats-url']),
+                                          ''))
+        # config_block = ConfigBlock({'binds': [Config.Bind('0.0.0.0', self.charm_config['stats-port'], None)],
+        #                             'configs': [('stats enable', ''),
+        #                                         ('stats auth {}'.format(user_string), ''),
+        #                                         ('stats uri {}'.format(self.charm_config['stats-url']), '')]
+        #                             })
         if self.charm_config['stats-local']:
-            config_block['acls'].append(Config.Acl('local', 'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
-            config_block['configs'].append(('block if !local', ''))
+            # config_block['acls'].append(Config.Acl('local', 'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
+            # config_block['configs'].append(('block if !local', ''))
+            config_block.append(Config.Acl('local', 'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
+            # config_block.append(Config.Config('block if !local', ''))
+            config_block.append(Config.Config('http-request deny if !local', ''))
         frontend = Config.Frontend('stats', '0.0.0.0', str(self.charm_config['stats-port']), config_block)
         self.proxy_config.frontends.append(frontend)
         if save:
@@ -168,7 +196,7 @@ class ProxyHelper():
 
     def disable_stats(self, save=True):
         # Remove any previous stats frontend
-        self.proxy_config.frontends = [fe for fe in self.proxy_config.frontends if fe.name != 'stats']
+        self.proxy_config.frontends[:] = [fe for fe in self.proxy_config.frontends if fe.name != 'stats']
         if save:
             self.save_config()
 
@@ -186,18 +214,21 @@ class ProxyHelper():
                                         operator='',
                                         backend_condition='',
                                         is_default=True)
-        frontend.usebackends().append(use_backend)
+        # frontend.usebackends().append(use_backend)
+        frontend.add_usebackend(use_backend)
 
         # Get the backend, create if not present
         backend = self.get_backend(backend_name)
 
         # Add redirect option to the backend
-        redirect_config = ('redirect scheme https', '')
-        backend.config_block['configs'].append(redirect_config)
+        # redirect_config = ('redirect scheme https', '')
+        redirect_config = Config.Config('redirect scheme https', '')
+        backend.add_config(redirect_config)
 
         # Add server so clean won't remove it
         server = Config.Server(name=backend_name, host='127.0.0.1', port=0)
-        backend.servers().append(server)
+        # backend.servers().append(server)
+        backend.add_server(server)
 
         # Render new cfg file
         if save:
@@ -208,7 +239,12 @@ class ProxyHelper():
 
         # Remove the redirect backend
         for fe in self.proxy_config.frontends:
-            fe.config_block['usebackends'] = [ub for ub in fe.usebackends() if ub.backend_name != backend_name]
+            # fe.remove_usebackend(backend_name)
+            for ub in fe.usebackends():
+                if ub.backend_name == backend_name:
+                    fe.config_block.remove(ub)
+            # fe.usebackends()[:] = [ub for ub in fe.usebackends() if ub.backend_name != backend_name]
+            # fe.config_block['usebackends'] = [ub for ub in fe.usebackends() if ub.backend_name != backend_name]
 
         # Clean the config
         self.clean_config(unit=backend_name, backend_name=backend_name, save=save)
@@ -221,13 +257,14 @@ class ProxyHelper():
             hookenv.log("Port is: {}".format(fe.port), "DEBUG")
             if fe.port == port:
                 hookenv.log("Using previous frontend", "DEBUG")
-                config_block = ConfigBlock(**fe.config_block)
-                fe.config_block = config_block
+                # config_block = ConfigBlock(**fe.config_block)
+                # fe.config_block = config_block
                 frontend = fe
                 break
         if frontend is None and create:
             hookenv.log("Creating frontend for port {}".format(port), "INFO")
-            config_block = ConfigBlock({'binds': [Config.Bind('0.0.0.0', port, None)]})
+            # config_block = ConfigBlock({'binds': [Config.Bind('0.0.0.0', port, None)]})
+            config_block = [Config.Bind('0.0.0.0', port, None)]
             frontend = Config.Frontend('relation-{}'.format(port), '0.0.0.0', port, config_block)
             self.proxy_config.frontends.append(frontend)
         return frontend
@@ -236,13 +273,14 @@ class ProxyHelper():
         backend = None
         for be in self.proxy_config.backends:
             if be.name == name:
-                config_block = ConfigBlock(**be.config_block)
-                be.config_block = config_block
+                # config_block = ConfigBlock(**be.config_block)
+                # be.config_block = config_block
                 backend = be
         if not backend and create:
             hookenv.log("Creating backend {}".format(name))
-            config_block = ConfigBlock()
-            backend = Config.Backend(name=name, config_block=config_block)
+            # config_block = ConfigBlock()
+            # config_block = []
+            backend = Config.Backend(name=name, config_block=[])
             self.proxy_config.backends.append(backend)
         return backend
 
@@ -254,40 +292,47 @@ class ProxyHelper():
 
         # Remove acls and use_backend statements from frontends
         for fe in self.proxy_config.frontends:
-            fe.config_block['acls'] = [acl for acl in fe.acls() if acl.name != unit]
-            fe.config_block['usebackends'] = [ub for ub in fe.usebackends() if ub.backend_condition != unit]
+            # fe.remove_acl(unit)
+            for ub in fe.usebackends():
+                if ub.backend_condition == unit:
+                    fe.config_block.remove(ub)
+            # fe.remove_usebackend(unit)
+            for acl in fe.acls():
+                if acl.name == unit:
+                    fe.config_block.remove(acl)
+            # fe.config_block['acls'] = [acl for acl in fe.acls() if acl.name != unit]
+            # fe.acls()[:] = [acl for acl in fe.acls() if acl.name != unit]
+            # fe.config_block['usebackends'] = [ub for ub in fe.usebackends() if ub.backend_condition != unit]
+            # fe.usebackends()[:] = [ub for ub in fe.usebackends() if ub.backend_condition != unit]
 
         # Remove server statements from backends
         for be in self.proxy_config.backends:
-            be.config_block['servers'] = [srv for srv in be.servers() if srv.name != unit]
+            for server in be.servers():
+                if server.name == unit:
+                    be.config_block.remove(server)
+            # be.remove_server(unit)
+            # be.config_block['servers'] = [srv for srv in be.servers() if srv.name != unit]
+            # be.servers()[:] = [srv for srv in be.servers() if srv.name != unit]
 
         # Remove any relation frontend if it doesn't have use_backend
-        self.proxy_config.frontends = [fe for fe in self.proxy_config.frontends if len(fe.usebackends()) > 0 or
-                                       not fe.name.startswith('relation')]
+        # for fe in self.proxy_config.frontends:
+        #     if len(fe.usebackends()) == 0 and fe.name.startswith('relation'):
+        #         del fe
+        # self.proxy_config.__frontends = [fe for fe in self.proxy_config.frontends if len(fe.usebackends()) > 0 or
+        #                                  not fe.name.startswith('relation')]
+        self.proxy_config.frontends[:] = [fe for fe in self.proxy_config.frontends if len(fe.usebackends()) > 0 or
+                                          not fe.name.startswith('relation')]
 
         # Remove any backend with no server
-        self.proxy_config.backends = [be for be in self.proxy_config.backends if len(be.servers()) > 0]
+        self.proxy_config.backends[:] = [be for be in self.proxy_config.backends if len(be.servers()) > 0]
+        # self.proxy_config.backends = [be for be in self.proxy_config.backends if len(be.servers()) > 0]
+        # for be in self.proxy_config.backends:
+        #     if len(be.servers()) == 0:
+        #         del be
         if save:
             self.save_config()
 
     def save_config(self):
-        # This is a hack to deal with config_block being defaultdict thus having unpredictabe render order
-        # Each section with a config_block will have it replaced with my own ConfigBlock class based on OrderedDict
-        has_config = (self.proxy_config.userlists,
-                      self.proxy_config.listens,
-                      self.proxy_config.frontends,
-                      self.proxy_config.backends,
-                      self.proxy_config.defaults
-                      )
-        for section_type in has_config:
-            for section in section_type:
-                config_block = ConfigBlock(**section.config_block)
-                section.config_block = config_block
-
-        # Convinently this section isn't iterable so it had to be pulled out of the above loop
-        config_block = ConfigBlock(**self.proxy_config.globall.config_block)
-        self.proxy_config.globall.config_block = config_block
-
         # Render new cfg file
         Render(self.proxy_config).dumps_to(self.proxy_config_file)
         host.service_reload('haproxy.service')

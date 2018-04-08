@@ -14,17 +14,17 @@ class TestLibhaproxy():
 
     def test_proxy_config(self, ph):
         ''' Check that default proxy config can be read '''
-        default_options = [('httplog', ''), ('dontlognull', '')]
+        default_keywords = ['httplog', 'dontlognull']
         for option in ph.proxy_config.defaults[0].options():
-            assert option in default_options
+            assert option.keyword in default_keywords
 
     def test_add_timeout_tunnel(self, ph):
-        test_options = [('tunnel timeout 1h', '')]
+        test_keywords = ['tunnel']
         for option in ph.proxy_config.defaults[0].options():
-            assert option not in test_options
+            assert option.keyword not in test_keywords
         ph.add_timeout_tunnel()
         for option in ph.proxy_config.defaults[0].options():
-            if option in test_options:
+            if option.keyword in test_keywords:
                 break
             else:
                 continue
@@ -33,6 +33,8 @@ class TestLibhaproxy():
     def test_get_config_names(self, ph, mock_remote_unit):
         config = {'group_id': 'test_group'}
         remote_unit, backend_name = ph.get_config_names(config)
+        assert remote_unit == 'unit-mock-0'
+        assert backend_name == 'test_group'
 
     def test_process_config(self, ph, monkeypatch):
         # Test writting a config file
@@ -83,7 +85,7 @@ class TestLibhaproxy():
         # Check that the expected number of backends are in use
         # Backends 0,2,3,4,5 should be in use by HTTP
         http_fe = ph.get_frontend(80, create=False)
-        assert len(http_fe.config_block['usebackends']) == 5
+        assert len(http_fe.usebackends()) == 5
 
     def test_get_frontend(self, ph):
         import pyhaproxy
@@ -101,7 +103,7 @@ class TestLibhaproxy():
         new_be = ph.get_backend('test-backend')
         assert isinstance(new_be, pyhaproxy.config.Backend)
         assert new_be.name == 'test-backend'
-        assert new_be.config_block['configs'] == []
+        assert new_be.configs() == []
         # Retrieve existing backend
         config = {'mode': 'http',
                   'urlbase': '/test',
@@ -115,7 +117,7 @@ class TestLibhaproxy():
         ph.process_config(config)
         backend = ph.get_backend('unit-mock-0')
         assert backend.name == 'unit-mock-0'
-        assert backend.config_block['configs'] != []
+        assert backend.configs() != []
 
     def test_enable_stats(self, ph):
         # Can't enable if FE is in use
@@ -144,7 +146,7 @@ class TestLibhaproxy():
         fe80 = ph.get_frontend(80)
         assert fe80.port == '80'
         default = None
-        for ub in fe80.config_block['usebackends']:
+        for ub in fe80.usebackends():
             if ub.backend_name == 'redirect':
                 default = ub
         assert default is not None
