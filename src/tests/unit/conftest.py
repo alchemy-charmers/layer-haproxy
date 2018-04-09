@@ -2,18 +2,6 @@
 import pytest
 import mock
 
-import os
-import sys
-import subprocess
-import pyhaproxy
-module_path = os.path.dirname(pyhaproxy.__file__)
-if not os.path.isfile(module_path + '/.2to3'):
-    del sys.modules['pyhaproxy']
-    del pyhaproxy
-    subprocess.check_call('2to3 -w {}'.format(module_path), shell=True)
-    import pyhaproxy
-    open(module_path + '/.2to3', 'a')
-
 
 @pytest.fixture
 def mock_crontab(monkeypatch):

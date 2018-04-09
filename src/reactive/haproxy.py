@@ -2,16 +2,12 @@ from charms.reactive import hook, when, when_all, when_any, when_not, set_state
 from charmhelpers.core import hookenv, host
 from charmhelpers import fetch
 
-import subprocess
+# import subprocess
 import fileinput
 import os
 import errno
 
-try:
-    from libhaproxy import ProxyHelper
-except:
-    subprocess.check_call('2to3 -w /usr/local/lib/python3.5/dist-packages/pyhaproxy', shell=True)
-    from libhaproxy import ProxyHelper
+from libhaproxy import ProxyHelper
 
 ph = ProxyHelper()
 

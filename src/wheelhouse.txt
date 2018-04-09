@@ -1,2 +1,2 @@
-pyhaproxy<= 0.2.4
+pyhaproxy > 0.2.4
 python-crontab

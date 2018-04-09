@@ -1,4 +1,4 @@
-#!usr/local/sbin/charm-env python3
+#!/usr/local/sbin/charm-env python3
 
 from charmhelpers.core import hookenv
 import sys

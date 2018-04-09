@@ -33,17 +33,6 @@ def nostats(deploy):
 
 
 class TestHaproxy():
-    # @classmethod
-    # def setup_class(self):
-    #     self.d = amulet.Deployment(series='xenial')
-
-    #     self.d.add('haproxy')
-    #     self.d.expose('haproxy')
-
-    #     self.d.setup(timeout=900)
-    #     self.d.sentry.wait()
-
-    #     self.unit = self.d.sentry['haproxy'][0]
 
     def test_wrong_login(self, deploy, unit):
         # Wrong log/pass is rejected
@@ -68,6 +57,19 @@ class TestHaproxy():
                                 headers={'Cache-Control': 'no-cache'}
                                 )
             print(page.json)
+
+    def test_action_renew_upnp(self, deploy, unit):
+        uuid = unit.run_action('renew-upnp')
+        action_output = deploy.get_action_output(uuid, full_output=True)
+        print(action_output)
+        assert action_output['status'] == 'completed'
+
+    def test_action_renew_cert(self, deploy, unit):
+        uuid = unit.run_action('renew-upnp')
+        action_output = deploy.get_action_output(uuid, full_output=True)
+        print(action_output)
+        assert action_output['status'] == 'completed'
+
         # test we can access over http
         # page = requests.get('http://{}'.format(self.unit.info['public-address']))
         # self.assertEqual(page.status_code, 200)
