@@ -43,6 +43,7 @@ class TestLibhaproxy():
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
         config = {'mode': 'http',
                   'urlbase': '/test',
+                  'rewrite-path': None,
                   'subdomain': None,
                   'group_id': None,
                   'external_port': 80,
@@ -89,10 +90,25 @@ class TestLibhaproxy():
         config['group_id'] = 'test-group'
         assert ph.process_config(config)['cfg_good'] is True
 
+        # Add a unit with rewrite-path
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/6')
+        config['group_id'] = 'rewrite-group'
+        config['rewrite-path'] = True
+        config['urlbase'] = '/mock6'
+        assert ph.process_config(config)['cfg_good'] is True
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/7')
+        assert ph.process_config(config)['cfg_good'] is True
+        backend = ph.get_backend('rewrite-group', create=False)
+        rewrite_found = False
+        for cfg in backend.configs():
+            if cfg.keyword.startswith('http-request set-path'):
+                rewrite_found = True
+        assert rewrite_found
+
         # Check that the expected number of backends are in use
-        # Backends 0,2,3,4,5 should be in use by HTTP
+        # Backends 0,2,3,4,5,6,7 should be in use by HTTP
         http_fe = ph.get_frontend(80, create=False)
-        assert len(http_fe.usebackends()) == 5
+        assert len(http_fe.usebackends()) == 7
 
     def test_get_frontend(self, ph):
         import pyhaproxy
@@ -114,6 +130,7 @@ class TestLibhaproxy():
         # Retrieve existing backend
         config = {'mode': 'http',
                   'urlbase': '/test',
+                  'rewrite-path': None,
                   'subdomain': None,
                   'group_id': None,
                   'external_port': 80,
@@ -173,6 +190,7 @@ class TestLibhaproxy():
     def test_available_fort_http(self, ph, monkeypatch):
         config = {'mode': 'http',
                   'urlbase': '/test',
+                  'rewrite-path': None,
                   'subdomain': None,
                   'group_id': None,
                   'external_port': 80,
@@ -204,6 +222,7 @@ class TestLibhaproxy():
     def test_available_fort_tcp(self, ph, monkeypatch):
         config = {'mode': 'http',
                   'urlbase': '/test',
+                  'rewrite-path': None,
                   'subdomain': None,
                   'group_id': None,
                   'external_port': 80,
@@ -238,6 +257,7 @@ class TestLibhaproxy():
     def test_clean_config(self, ph, monkeypatch):
         config = {'mode': 'http',
                   'urlbase': '/test',
+                  'rewrite-path': None,
                   'subdomain': None,
                   'group_id': None,
                   'external_port': 80,
@@ -320,6 +340,7 @@ class TestLibhaproxy():
         # Modify config should change mtime
         config = {'mode': 'http',
                   'urlbase': '/test',
+                  'rewrite-path': None,
                   'subdomain': None,
                   'group_id': None,
                   'external_port': 80,
@@ -335,6 +356,7 @@ class TestLibhaproxy():
         import sys
         config = {'mode': 'http',
                   'urlbase': '/test',
+                  'rewrite-path': None,
                   'subdomain': None,
                   'group_id': None,
                   'external_port': 80,
@@ -456,6 +478,7 @@ class TestLibhaproxy():
         ph.enable_letsencrypt()
         config = {'mode': 'http',
                   'urlbase': '/test',
+                  'rewrite-path': None,
                   'subdomain': None,
                   'group_id': None,
                   'external_port': 80,

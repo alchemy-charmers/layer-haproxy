@@ -64,7 +64,6 @@ class ProxyHelper():
             if config['subdomain']:
                 acl = Config.Acl(name=remote_unit, value='hdr_beg(host) -i {}'.format(config['subdomain']))
                 frontend.add_acl(acl)
-
             # Add use_backend section to the frontend
             use_backend = Config.UseBackend(backend_name=backend_name,
                                             operator='if',
@@ -110,6 +109,16 @@ class ProxyHelper():
                     check_option = Config.Option(httpchk, '')
                     backend.add_option(check_option)
                 attributes.append('check')
+            # Add rewrite-path if requested and not present
+            if config['rewrite-path'] and config['urlbase']:
+                check_cfg = None
+                rewrite = 'http-request set-path %[path,regsub({},)]'.format(config['urlbase'])
+                for test_cfg in backend.configs():
+                    if rewrite in test_cfg.keyword:
+                        check_cfg = test_cfg
+                if not check_cfg:
+                    check_cfg = Config.Config(rewrite, '')
+                    backend.add_config(check_cfg)
         else:
             attributes = ['']
         server = Config.Server(name=remote_unit, host=config['internal_host'], port=config['internal_port'], attributes=attributes)
