@@ -65,7 +65,7 @@ class TestHaproxy():
         assert action_output['status'] == 'completed'
 
     def test_action_renew_cert(self, deploy, unit):
-        uuid = unit.run_action('renew-upnp')
+        uuid = unit.run_action('renew-cert')
         action_output = deploy.get_action_output(uuid, full_output=True)
         print(action_output)
         assert action_output['status'] == 'completed'
