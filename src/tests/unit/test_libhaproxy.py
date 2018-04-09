@@ -19,16 +19,18 @@ class TestLibhaproxy():
             assert option.keyword in default_keywords
 
     def test_add_timeout_tunnel(self, ph):
-        test_keywords = ['tunnel']
-        for option in ph.proxy_config.defaults[0].options():
-            assert option.keyword not in test_keywords
+        test_keyword = 'timeout tunnel'
+        defaults = ph.proxy_config.defaults[0]
+        for cfg in defaults.configs():
+            print(cfg.keyword)
+            assert cfg.keyword != test_keyword
         ph.add_timeout_tunnel()
-        for option in ph.proxy_config.defaults[0].options():
-            if option.keyword in test_keywords:
-                break
-            else:
-                continue
-            assert 0  # test_options not found in default section
+        tunnel_found = False
+        for cfg in defaults.configs():
+            print(cfg.keyword)
+            if cfg.keyword == test_keyword:
+                tunnel_found = True
+        assert tunnel_found
 
     def test_get_config_names(self, ph, mock_remote_unit):
         config = {'group_id': 'test_group'}
@@ -57,6 +59,11 @@ class TestLibhaproxy():
         # Successful tcp on unused frontend
         config['external_port'] = 90
         assert ph.process_config(config)['cfg_good'] is True
+
+        # Fail tcp on existing tcp frontend
+        config['external_port'] = 90
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1.5')
+        assert ph.process_config(config)['cfg_good'] is False
 
         # Error if http requested on existing tcp frontend
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/2')
@@ -266,7 +273,8 @@ class TestLibhaproxy():
 
         assert ph.get_frontend(80, create=False) is not None
         fe = ph.get_frontend(80, create=False)
-        assert len(fe.config_block['usebackends']) == 4
+        assert len(fe.usebackends()) == 4
+        assert len(fe.acls()) == 4
         assert ph.get_backend(backend_0, create=False) is not None
         assert ph.get_backend(backend_1, create=False) is not None
         assert ph.get_backend(backend_2, create=False) is not None
@@ -274,7 +282,8 @@ class TestLibhaproxy():
 
         # Remove 1 of the grouped backends and re-check
         ph.clean_config(unit_3, backend_3)
-        assert len(fe.config_block['usebackends']) == 3
+        assert len(fe.usebackends()) == 3
+        assert len(fe.acls()) == 3
         assert ph.get_backend(backend_0, create=False) is not None
         assert ph.get_backend(backend_1, create=False) is not None
         assert ph.get_backend(backend_2, create=False) is not None
@@ -282,7 +291,8 @@ class TestLibhaproxy():
 
         # Remove the other and check that the group is now gone
         ph.clean_config(unit_2, backend_2)
-        assert len(fe.config_block['usebackends']) == 2
+        assert len(fe.usebackends()) == 2
+        assert len(fe.acls()) == 2
         assert ph.get_backend(backend_0, create=False) is not None
         assert ph.get_backend(backend_1, create=False) is not None
         assert ph.get_backend(backend_2, create=False) is None
@@ -290,7 +300,8 @@ class TestLibhaproxy():
 
         # Remove another backend
         ph.clean_config(unit_1, backend_1)
-        assert len(fe.config_block['usebackends']) == 1
+        assert len(fe.usebackends()) == 1
+        assert len(fe.acls()) == 1
         assert ph.get_backend(backend_0, create=False) is not None
         assert ph.get_backend(backend_1, create=False) is None
         assert ph.get_backend(backend_2, create=False) is None
@@ -422,12 +433,13 @@ class TestLibhaproxy():
         ph.enable_letsencrypt()
         fe80 = ph.get_frontend(80, create=False)
         fe443 = ph.get_frontend(443, create=False)
-        assert fe80.config_block['acls'][0].name == 'letsencrypt'
-        assert fe80.config_block['usebackends'][0].backend_name == 'letsencrypt-backend'
-        assert 'mock.pem' in fe443.config_block['binds'][0].attributes[0]
-        assert fe443.config_block['acls'][0].name == 'letsencrypt'
-        assert fe443.config_block['usebackends'][0].backend_name == 'letsencrypt-backend'
-        assert 'reqirep' in fe443.config_block['configs'][0][0]
+        # assert fe80.config_block['acls'][0].name == 'letsencrypt'
+        assert fe80.usebackend('letsencrypt-backend')
+        assert 'mock.pem' in fe443.binds()[0].attributes[0]
+        assert fe443.acl('letsencrypt')
+        assert fe443.usebackend('letsencrypt-backend')
+        assert fe443.config('reqirep', 'Destination:\\ https(.*) Destination:\\ http\\\\1 ')
+        # assert 'reqirep' in fe443.config_block['configs'][0][0]
 
     def test_disable_letsencrypt(self, ph, cert, mock_crontab, monkeypatch):
         # Remove letsencrypt and all unused sections
@@ -458,12 +470,12 @@ class TestLibhaproxy():
         ph.disable_letsencrypt()
         fe80 = ph.get_frontend(80, create=False)
         fe443 = ph.get_frontend(443, create=False)
-        assert fe80.config_block['acls'][0].name == 'unit-mock-0'
-        assert fe80.config_block['usebackends'][0].backend_name == 'unit-mock-0'
-        assert fe443.config_block['binds'][0].attributes == []
-        assert fe443.config_block['acls'][0].name == 'unit-mock-1'
-        assert fe443.config_block['usebackends'][0].backend_name == 'unit-mock-1'
-        assert fe443.config_block['configs'] == []
+        assert fe80.acl('unit-mock-0')
+        assert fe80.usebackend('unit-mock-0')
+        assert fe443.binds()[0].attributes == []
+        assert fe443.acl('unit-mock-1')
+        assert fe443.usebackend('unit-mock-1')
+        assert fe443.configs() == []
         assert ph.get_backend('letsencrypt-backend', create=False) is None
 
     def test_renew_cert(self, ph, monkeypatch):

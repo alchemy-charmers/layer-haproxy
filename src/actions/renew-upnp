@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
+#!usr/local/sbin/charm-env python3
 
 from charmhelpers.core import hookenv
 import sys
 sys.path.append(hookenv.charm_dir())
-sys.path.append(hookenv.charm_dir()+'/lib')
+sys.path.append(hookenv.charm_dir() + '/lib')
 
 from libhaproxy import ProxyHelper
 
