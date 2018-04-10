@@ -89,36 +89,37 @@ class ProxyHelper():
         # Add server to the backend
         if config['mode'] == 'http':
             # Add cookie config if not already present
-            cookie_config = None
+            cookie_found = False
             cookie = 'cookie SERVERID insert indirect nocache'
             for test_config in backend.configs():
                 if cookie in test_config.keyword:
-                    cookie_config = config
-            if not cookie_config:
-                cookie_config = Config.Config(cookie, '')
-                backend.add_config(cookie_config)
+                    cookie_found = True
+            if not cookie_found:
+                backend.add_config(Config.Config(cookie, ''))
             attributes = ['cookie {}'.format(remote_unit)]
             # Add httpchk option if not present
             if config['group_id']:
-                check_option = None
+                httpchk_found = False
                 httpchk = 'httpchk GET / HTTP/1.0'
                 for test_option in backend.options():
                     if httpchk in test_option.keyword:
-                        check_option = test_option
-                if not check_option:
-                    check_option = Config.Option(httpchk, '')
-                    backend.add_option(check_option)
+                        httpchk_found = True
+                if not httpchk_found:
+                    backend.add_option(Config.Option(httpchk, ''))
                 attributes.append('check')
             # Add rewrite-path if requested and not present
             if config['rewrite-path'] and config['urlbase']:
-                check_cfg = None
+                rewrite_found = False
                 rewrite = 'http-request set-path %[path,regsub({},)]'.format(config['urlbase'])
                 for test_cfg in backend.configs():
                     if rewrite in test_cfg.keyword:
-                        check_cfg = test_cfg
-                if not check_cfg:
-                    check_cfg = Config.Config(rewrite, '')
-                    backend.add_config(check_cfg)
+                        rewrite_found = True
+                if not rewrite_found:
+                    backend.add_config(Config.Config(rewrite, ''))
+            if config['acl-local']:
+                if not backend.acl('local'):
+                    backend.add_acl(Config.Acl('local', 'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
+                    backend.add_config(Config.Config('http-request deny if !local', ''))
         else:
             attributes = ['']
         server = Config.Server(name=remote_unit, host=config['internal_host'], port=config['internal_port'], attributes=attributes)

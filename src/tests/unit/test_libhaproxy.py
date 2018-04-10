@@ -32,24 +32,15 @@ class TestLibhaproxy():
                 tunnel_found = True
         assert tunnel_found
 
-    def test_get_config_names(self, ph, mock_remote_unit):
-        config = {'group_id': 'test_group'}
+    def test_get_config_names(self, ph, mock_remote_unit, config):
+        config['group_id'] = 'test_group'
         remote_unit, backend_name = ph.get_config_names(config)
         assert remote_unit == 'unit-mock-0'
         assert backend_name == 'test_group'
 
-    def test_process_config(self, ph, monkeypatch):
+    def test_process_config(self, ph, monkeypatch, config):
         # Test writting a config file
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
-        config = {'mode': 'http',
-                  'urlbase': '/test',
-                  'rewrite-path': None,
-                  'subdomain': None,
-                  'group_id': None,
-                  'external_port': 80,
-                  'internal_host': 'test-host',
-                  'internal_port': 8000
-                  }
         assert ph.process_config(config)['cfg_good'] is True
 
         # Error if tcp requested on existing http frontend
@@ -90,10 +81,11 @@ class TestLibhaproxy():
         config['group_id'] = 'test-group'
         assert ph.process_config(config)['cfg_good'] is True
 
-        # Add a unit with rewrite-path
+        # Add a unit with rewrite-path and local
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/6')
         config['group_id'] = 'rewrite-group'
         config['rewrite-path'] = True
+        config['acl-local'] = True
         config['urlbase'] = '/mock6'
         assert ph.process_config(config)['cfg_good'] is True
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/7')
@@ -104,6 +96,8 @@ class TestLibhaproxy():
             if cfg.keyword.startswith('http-request set-path'):
                 rewrite_found = True
         assert rewrite_found
+        assert backend.acl('local')
+        assert 0
 
         # Check that the expected number of backends are in use
         # Backends 0,2,3,4,5,6,7 should be in use by HTTP
@@ -120,7 +114,7 @@ class TestLibhaproxy():
         assert ph.get_frontend(80).port == '80'
         assert ph.get_frontend(90).port == '90'
 
-    def test_get_backend(self, ph, monkeypatch):
+    def test_get_backend(self, ph, monkeypatch, config):
         import pyhaproxy
         # Create and return a new backend
         new_be = ph.get_backend('test-backend')
@@ -128,15 +122,6 @@ class TestLibhaproxy():
         assert new_be.name == 'test-backend'
         assert new_be.configs() == []
         # Retrieve existing backend
-        config = {'mode': 'http',
-                  'urlbase': '/test',
-                  'rewrite-path': None,
-                  'subdomain': None,
-                  'group_id': None,
-                  'external_port': 80,
-                  'internal_host': 'test-host',
-                  'internal_port': 8000
-                  }
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
         ph.process_config(config)
         backend = ph.get_backend('unit-mock-0')
@@ -187,16 +172,7 @@ class TestLibhaproxy():
         beRedirect = ph.get_backend('redirect', create=False)
         assert beRedirect is None
 
-    def test_available_fort_http(self, ph, monkeypatch):
-        config = {'mode': 'http',
-                  'urlbase': '/test',
-                  'rewrite-path': None,
-                  'subdomain': None,
-                  'group_id': None,
-                  'external_port': 80,
-                  'internal_host': 'test-host',
-                  'internal_port': 8000
-                  }
+    def test_available_fort_http(self, ph, monkeypatch, config):
         # Create http at 80
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
         assert ph.process_config(config)['cfg_good'] is True
@@ -219,16 +195,7 @@ class TestLibhaproxy():
         fe9000 = ph.get_frontend(9000)
         assert ph.available_for_http(fe9000) is False
 
-    def test_available_fort_tcp(self, ph, monkeypatch):
-        config = {'mode': 'http',
-                  'urlbase': '/test',
-                  'rewrite-path': None,
-                  'subdomain': None,
-                  'group_id': None,
-                  'external_port': 80,
-                  'internal_host': 'test-host',
-                  'internal_port': 8000
-                  }
+    def test_available_fort_tcp(self, ph, monkeypatch, config):
         # Create http at 80
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
         assert ph.process_config(config)['cfg_good'] is True
@@ -254,16 +221,7 @@ class TestLibhaproxy():
         assert ph.available_for_tcp(fe9000, 'unit-mock-0') is False
         assert ph.available_for_tcp(fe9000, 'unit-mock-1') is False
 
-    def test_clean_config(self, ph, monkeypatch):
-        config = {'mode': 'http',
-                  'urlbase': '/test',
-                  'rewrite-path': None,
-                  'subdomain': None,
-                  'group_id': None,
-                  'external_port': 80,
-                  'internal_host': 'test-host',
-                  'internal_port': 8000
-                  }
+    def test_clean_config(self, ph, monkeypatch, config):
         # Test adding and removing single unit
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
         remote_unit, backend_name = ph.get_config_names(config)
@@ -334,35 +292,17 @@ class TestLibhaproxy():
         assert ph.get_backend(backend_2, create=False) is None
         assert ph.get_backend(backend_3, create=False) is None
 
-    def test_save_config(self, ph, monkeypatch):
+    def test_save_config(self, ph, monkeypatch, config):
         import os
         initial_time = os.path.getmtime(ph.proxy_config_file)
         # Modify config should change mtime
-        config = {'mode': 'http',
-                  'urlbase': '/test',
-                  'rewrite-path': None,
-                  'subdomain': None,
-                  'group_id': None,
-                  'external_port': 80,
-                  'internal_host': 'test-host',
-                  'internal_port': 8000
-                  }
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
         ph.process_config(config)
         time2 = os.path.getmtime(ph.proxy_config_file)
         assert initial_time != time2
 
-    def test_update_ports(self, ph, monkeypatch):
+    def test_update_ports(self, ph, monkeypatch, config):
         import sys
-        config = {'mode': 'http',
-                  'urlbase': '/test',
-                  'rewrite-path': None,
-                  'subdomain': None,
-                  'group_id': None,
-                  'external_port': 80,
-                  'internal_host': 'test-host',
-                  'internal_port': 8000
-                  }
         mports = sys.modules['libhaproxy'].subprocess.check_output
         # Check that ports start empty and dont' change on update_ports
         assert mports.open_ports == ''
@@ -463,7 +403,7 @@ class TestLibhaproxy():
         assert fe443.config('reqirep', 'Destination:\\ https(.*) Destination:\\ http\\\\1 ')
         # assert 'reqirep' in fe443.config_block['configs'][0][0]
 
-    def test_disable_letsencrypt(self, ph, cert, mock_crontab, monkeypatch):
+    def test_disable_letsencrypt(self, ph, cert, mock_crontab, monkeypatch, config):
         # Remove letsencrypt and all unused sections
         ph.enable_letsencrypt()
         assert ph.get_frontend(80, create=False) is not None
@@ -476,15 +416,6 @@ class TestLibhaproxy():
 
         # Remove letsencrypt but not other frontends
         ph.enable_letsencrypt()
-        config = {'mode': 'http',
-                  'urlbase': '/test',
-                  'rewrite-path': None,
-                  'subdomain': None,
-                  'group_id': None,
-                  'external_port': 80,
-                  'internal_host': 'test-host',
-                  'internal_port': 8000
-                  }
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
         ph.process_config(config)
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')

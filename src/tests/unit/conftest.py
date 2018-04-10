@@ -2,6 +2,22 @@
 import pytest
 import mock
 
+from collections import defaultdict
+
+@pytest.fixture
+def config():
+    defaults = {'mode': 'http',
+                'urlbase': '/test',
+                'rewrite-path': None,
+                'acl-local': None,
+                'subdomain': None,
+                'group_id': None,
+                'external_port': 80,
+                'internal_host': 'test-host',
+                'internal_port': 8000
+                }
+    return defaultdict(lambda: None, defaults)
+
 
 @pytest.fixture
 def mock_crontab(monkeypatch):
@@ -110,19 +126,6 @@ def mock_ports(monkeypatch, open_ports=''):
     # monkeypatch.setattr('libhaproxy.subprocess.check_call',
     #                     mock.Mock(spec=mports, wraps=mports))
 
-
-# @pytest.fixture
-# def pyhaproxy(mock_layers, mock_hookenv_config):
-#     import os
-#     import sys
-#     import subprocess
-#     if 'pyhaproxy' not in sys.modules.keys():
-#         import pyhaproxy
-#         module_path = os.path.dirname(pyhaproxy.__file__)
-#         del sys.modules['pyhaproxy']
-#         del pyhaproxy
-#         subprocess.check_call('2to3-3.5 -w {}'.format(module_path), shell=True)
-#         import pyhaproxy
 
 
 @pytest.fixture
