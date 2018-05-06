@@ -100,7 +100,7 @@ class ProxyHelper():
             # Add httpchk option if not present
             if config['group_id']:
                 httpchk_found = False
-                httpchk = 'httpchk GET / HTTP/1.0'
+                httpchk = 'httpchk GET {} HTTP/1.0'.format(config['urlbase'] or '/')
                 for test_option in backend.options():
                     if httpchk in test_option.keyword:
                         httpchk_found = True
