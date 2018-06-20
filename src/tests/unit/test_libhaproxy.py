@@ -97,7 +97,6 @@ class TestLibhaproxy():
                 rewrite_found = True
         assert rewrite_found
         assert backend.acl('local')
-        assert 0
 
         # Check that the expected number of backends are in use
         # Backends 0,2,3,4,5,6,7 should be in use by HTTP
@@ -252,7 +251,7 @@ class TestLibhaproxy():
         assert ph.get_frontend(80, create=False) is not None
         fe = ph.get_frontend(80, create=False)
         assert len(fe.usebackends()) == 4
-        assert len(fe.acls()) == 4
+        assert len(fe.acls()) == 8
         assert ph.get_backend(backend_0, create=False) is not None
         assert ph.get_backend(backend_1, create=False) is not None
         assert ph.get_backend(backend_2, create=False) is not None
@@ -261,7 +260,7 @@ class TestLibhaproxy():
         # Remove 1 of the grouped backends and re-check
         ph.clean_config(unit_3, backend_3)
         assert len(fe.usebackends()) == 3
-        assert len(fe.acls()) == 3
+        assert len(fe.acls()) == 6
         assert ph.get_backend(backend_0, create=False) is not None
         assert ph.get_backend(backend_1, create=False) is not None
         assert ph.get_backend(backend_2, create=False) is not None
@@ -270,7 +269,7 @@ class TestLibhaproxy():
         # Remove the other and check that the group is now gone
         ph.clean_config(unit_2, backend_2)
         assert len(fe.usebackends()) == 2
-        assert len(fe.acls()) == 2
+        assert len(fe.acls()) == 4
         assert ph.get_backend(backend_0, create=False) is not None
         assert ph.get_backend(backend_1, create=False) is not None
         assert ph.get_backend(backend_2, create=False) is None
@@ -279,7 +278,7 @@ class TestLibhaproxy():
         # Remove another backend
         ph.clean_config(unit_1, backend_1)
         assert len(fe.usebackends()) == 1
-        assert len(fe.acls()) == 1
+        assert len(fe.acls()) == 2
         assert ph.get_backend(backend_0, create=False) is not None
         assert ph.get_backend(backend_1, create=False) is None
         assert ph.get_backend(backend_2, create=False) is None

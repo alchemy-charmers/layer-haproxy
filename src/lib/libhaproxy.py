@@ -53,13 +53,20 @@ class ProxyHelper():
         # Get the frontend, create if not present
         frontend = self.get_frontend(config['external_port'])
 
+        # urlbase use to accept / now they are added automatically
+        # to avoid errors strip it from old configs
+        if config['urlbase']:
+            config['urlbase'] = config['urlbase'].strip('/')
+
         if config['mode'] == 'http':
             if not self.available_for_http(frontend):
                 return({"cfg_good": False, "msg": "Port not available for http routing"})
 
             # Add ACL's to the frontend
             if config['urlbase']:
-                acl = Config.Acl(name=remote_unit, value='path_beg {}'.format(config['urlbase']))
+                acl = Config.Acl(name=remote_unit, value='path_beg /{}/'.format(config['urlbase']))
+                frontend.add_acl(acl)
+                acl = Config.Acl(name=remote_unit, value='path /{}'.format(config['urlbase']))
                 frontend.add_acl(acl)
             if config['subdomain']:
                 acl = Config.Acl(name=remote_unit, value='hdr_beg(host) -i {}'.format(config['subdomain']))
@@ -110,7 +117,7 @@ class ProxyHelper():
             # Add rewrite-path if requested and not present
             if config['rewrite-path'] and config['urlbase']:
                 rewrite_found = False
-                rewrite = 'http-request set-path %[path,regsub({},)]'.format(config['urlbase'])
+                rewrite = 'http-request set-path %[path,regsub(^/{}/?,/)]'.format(config['urlbase'])
                 for test_cfg in backend.configs():
                     if rewrite in test_cfg.keyword:
                         rewrite_found = True
