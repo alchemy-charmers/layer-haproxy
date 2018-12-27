@@ -127,6 +127,24 @@ class ProxyHelper():
                 if not backend.acl('local'):
                     backend.add_acl(Config.Acl('local', 'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
                     backend.add_config(Config.Config('http-request deny if !local', ''))
+            if config['proxypass']:
+                proxy_found = False
+                for test_option in backend.options():
+                    if 'forwardfor' in test_cfg.keyword:
+                        proxy_found = True
+                if not proxy_found:
+                    backend.add_option(Config.Option('forwardfor', ''))
+                if config['external_port'] == 443:
+                    forward_for = 'http-request set-header X-Forwarded-Proto https'
+                else:
+                    forward_for = 'http-request set-header X-Forwarded-Proto http'
+                backend.add_config(Config.Config(forward_for, ''))
+            if config['ssl']:
+                if config['ssl-verify']:
+                    ssl_attrib = 'ssl'
+                else:
+                    ssl_attrib = 'ssl verify none'
+                attributes.append(ssl_attrib)
         else:
             attributes = ['']
         server = Config.Server(name=remote_unit, host=config['internal_host'], port=config['internal_port'], attributes=attributes)

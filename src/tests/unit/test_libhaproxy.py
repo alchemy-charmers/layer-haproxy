@@ -98,6 +98,35 @@ class TestLibhaproxy():
         assert rewrite_found
         assert backend.acl('local')
 
+        # Add a unit with proxypass, ssl verify none, and no check
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/8')
+        config['subdomain'] = False
+        config['group_id'] = None
+        config['rewrite-path'] = None
+        config['acl-local'] = None
+        config['urlbase'] = '/mock8'
+        config['proxypass'] = True
+        config['ssl'] = True
+        config['ssl-verify'] = False
+        config['external_port'] = 443
+        assert ph.process_config(config)['cfg_good'] is True
+        backend = ph.get_backend('unit-mock-8', create=False)
+        forward_for_found = False
+        for option in backend.options():
+            if 'forwardfor' in option.keyword:
+                forward_for_found = True
+        assert forward_for_found
+        forward_proto_found = False
+        for cfg in backend.configs():
+            if 'X-Forwarded-Proto https' in cfg.keyword:
+                forward_proto_found = True
+        assert forward_proto_found
+        ssl_found = False
+        for server in backend.servers():
+            if 'ssl verify none' in server.attributes:
+                ssl_found = True
+        assert ssl_found
+
         # Check that the expected number of backends are in use
         # Backends 0,2,3,4,5,6,7 should be in use by HTTP
         http_fe = ph.get_frontend(80, create=False)
