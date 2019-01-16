@@ -53,16 +53,38 @@ def configure_haproxy():
 def configure_relation(reverseproxy, *args):
     hookenv.status_set('maintenance', 'Setting up relation')
     hookenv.log("Received config: {}".format(reverseproxy.config), "Info")
-    status = ph.process_config(reverseproxy.config)
-    reverseproxy.set_cfg_status(**status)
+    # Process either dict or list of dicts to support legacy relations
+    configs = []
+    if isinstance(reverseproxy.config, dict):
+        configs.append(reverseproxy.config)
+    else:
+        configs = reverseproxy.config
+    status_set = False
+    for config in configs:
+        status = ph.process_config(config)
+        if not status['cfg_good']:
+            # If any status fails set that as the result
+            reverseproxy.set_cfg_status(**status)
+            status_set = True
+    if not status_set:
+        # If no config failed set the status of the final config
+        reverseproxy.set_cfg_status(**status)
     hookenv.status_set('active', '')
 
 
 @when_all('reverseproxy.triggered', 'reverseproxy.departed')
 def remove_relation(reverseproxy, *args):
     hookenv.log("Removing config for: {}".format(hookenv.remote_unit()))
-    unit_name, backend_name = ph.get_config_names(reverseproxy.config)
-    ph.clean_config(unit=unit_name, backend_name=backend_name)
+    # Process either dict or list of dicts to support legacy relations
+    configs = []
+    if isinstance(reverseproxy.config, dict):
+        configs.append(reverseproxy.config)
+    else:
+        configs = reverseproxy.config
+
+    for config in configs:
+        unit_name, backend_name = ph.get_config_names(config)
+        ph.clean_config(unit=unit_name, backend_name=backend_name)
 
 
 @when('config.changed.version')
