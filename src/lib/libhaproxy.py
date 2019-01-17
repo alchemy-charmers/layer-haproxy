@@ -41,7 +41,7 @@ class ProxyHelper():
         ''' Note this requires a remote unit '''
         names = []
         for index, config in enumerate(configs):
-            remote_unit = hookenv.remote_unit().replace('/', '-') + f'-{index}'
+            remote_unit = hookenv.remote_unit().replace('/', '-') + '-{}'.format(index)
             backend_name = config['group_id'] or remote_unit
             names.append((remote_unit, backend_name))
         return names

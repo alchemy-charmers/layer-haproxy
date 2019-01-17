@@ -43,6 +43,10 @@ class TestLibhaproxy():
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
         assert ph.process_configs([config])['cfg_good'] is True
 
+        # Test writting two configs from one unit
+        monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
+        assert ph.process_configs([config, config])['cfg_good'] is True
+
         # Error if tcp requested on existing http frontend
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')
         config['mode'] = 'tcp'
@@ -128,9 +132,9 @@ class TestLibhaproxy():
         assert ssl_found
 
         # Check that the expected number of backends are in use
-        # Backends 0,2,3,4,5,6,7 should be in use by HTTP
+        # Backends 0-0,0-1,2,3,4,5,6,7 should be in use by HTTP port 80
         http_fe = ph.get_frontend(80, create=False)
-        assert len(http_fe.usebackends()) == 7
+        assert len(http_fe.usebackends()) == 8
 
     def test_get_frontend(self, ph):
         import pyhaproxy
