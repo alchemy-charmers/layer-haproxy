@@ -59,16 +59,8 @@ def configure_relation(reverseproxy, *args):
         configs.append(reverseproxy.config)
     else:
         configs = reverseproxy.config
-    status_set = False
-    for config in configs:
-        status = ph.process_config(config)
-        if not status['cfg_good']:
-            # If any status fails set that as the result
-            reverseproxy.set_cfg_status(**status)
-            status_set = True
-    if not status_set:
-        # If no config failed set the status of the final config
-        reverseproxy.set_cfg_status(**status)
+    status = ph.process_configs(configs)
+    reverseproxy.set_cfg_status(**status)
     hookenv.status_set('active', '')
 
 
@@ -82,8 +74,9 @@ def remove_relation(reverseproxy, *args):
     else:
         configs = reverseproxy.config
 
-    for config in configs:
-        unit_name, backend_name = ph.get_config_names(config)
+    for names in ph.get_config_names(configs):
+        unit_name = names[0]
+        backend_name = names[1]
         ph.clean_config(unit=unit_name, backend_name=backend_name)
 
 
