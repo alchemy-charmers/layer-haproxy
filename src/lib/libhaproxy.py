@@ -153,6 +153,11 @@ class ProxyHelper():
             attributes = ['check fall 3 rise 2']
 
             # Add server to the backend
+            # Firstly, set the mode on the backedn to match
+            # the frontend
+            backend.add_config(Config.Config('mode', config['mode']))
+
+            # Now, for HTTP specific configuration
             if config['mode'] == 'http':
                 # Add cookie config if not already present
                 cookie_found = False
