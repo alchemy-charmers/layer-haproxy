@@ -144,6 +144,14 @@ class ProxyHelper():
             # Get the backend, create if not present
             backend = self.get_backend(backend_name)
 
+            # Set sensible connection checking parameter
+            # by default. This will work for both TCP
+            # and HTTP backends, if a group-id is specified,
+            # nicer HTTP checks for HTTP backends will also
+            # be enabled to perform HTTP requests as part of
+            # checking backend health
+            attributes = ['check fall 3 rise 2']
+
             # Add server to the backend
             if config['mode'] == 'http':
                 # Add cookie config if not already present
@@ -154,7 +162,7 @@ class ProxyHelper():
                         cookie_found = True
                 if not cookie_found:
                     backend.add_config(Config.Config(cookie, ''))
-                attributes = ['cookie {}'.format(remote_unit)]
+                attributes.append('cookie {}'.format(remote_unit))
                 # Add httpchk option if not present
                 if config['group_id']:
                     httpchk_found = False
@@ -206,8 +214,6 @@ class ProxyHelper():
                     else:
                         ssl_attrib = 'ssl verify none'
                     attributes.append(ssl_attrib)
-            else:
-                attributes = ['']
             server = Config.Server(name=remote_unit,
                                    host=config['internal_host'],
                                    port=config['internal_port'],
