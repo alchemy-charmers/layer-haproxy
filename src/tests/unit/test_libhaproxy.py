@@ -34,52 +34,52 @@ class TestLibhaproxy():
 
     def test_get_config_names(self, ph, mock_remote_unit, config):
         config['group_id'] = 'test_group'
-        remote_unit, backend_name = ph.get_config_names(config)
-        assert remote_unit == 'unit-mock-0'
+        remote_unit, backend_name = ph.get_config_names([config])[0]
+        assert remote_unit == 'unit-mock-0-0'
         assert backend_name == 'test_group'
 
-    def test_process_config(self, ph, monkeypatch, config):
+    def test_process_configs(self, ph, monkeypatch, config):
         # Test writting a config file
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
 
         # Error if tcp requested on existing http frontend
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')
         config['mode'] = 'tcp'
-        assert ph.process_config(config)['cfg_good'] is False
+        assert ph.process_configs([config])['cfg_good'] is False
 
         # Successful tcp on unused frontend
         config['external_port'] = 90
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
 
         # Fail tcp on existing tcp frontend
         config['external_port'] = 90
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1.5')
-        assert ph.process_config(config)['cfg_good'] is False
+        assert ph.process_configs([config])['cfg_good'] is False
 
         # Error if http requested on existing tcp frontend
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/2')
         config['mode'] = 'http'
-        assert ph.process_config(config)['cfg_good'] is False
+        assert ph.process_configs([config])['cfg_good'] is False
 
         # Register with subdomain
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/2')
         config['subdomain'] = 'subtest'
         config['external_port'] = 80
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
 
         # Register with only subdomain
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/3')
         config['urlbase'] = None
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
 
         # Add two units with a group-id
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/4')
         config['group_id'] = 'test-group'
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/5')
         config['group_id'] = 'test-group'
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
 
         # Add a unit with rewrite-path and local
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/6')
@@ -87,9 +87,9 @@ class TestLibhaproxy():
         config['rewrite-path'] = True
         config['acl-local'] = True
         config['urlbase'] = '/mock6'
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/7')
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
         backend = ph.get_backend('rewrite-group', create=False)
         rewrite_found = False
         for cfg in backend.configs():
@@ -109,8 +109,8 @@ class TestLibhaproxy():
         config['ssl'] = True
         config['ssl-verify'] = False
         config['external_port'] = 443
-        assert ph.process_config(config)['cfg_good'] is True
-        backend = ph.get_backend('unit-mock-8', create=False)
+        assert ph.process_configs([config])['cfg_good'] is True
+        backend = ph.get_backend('unit-mock-8-0', create=False)
         forward_for_found = False
         for option in backend.options():
             if 'forwardfor' in option.keyword:
@@ -151,9 +151,9 @@ class TestLibhaproxy():
         assert new_be.configs() == []
         # Retrieve existing backend
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
-        ph.process_config(config)
-        backend = ph.get_backend('unit-mock-0')
-        assert backend.name == 'unit-mock-0'
+        ph.process_configs([config])
+        backend = ph.get_backend('unit-mock-0-0')
+        assert backend.name == 'unit-mock-0-0'
         assert backend.configs() != []
 
     def test_enable_stats(self, ph):
@@ -200,16 +200,16 @@ class TestLibhaproxy():
         beRedirect = ph.get_backend('redirect', create=False)
         assert beRedirect is None
 
-    def test_available_fort_http(self, ph, monkeypatch, config):
+    def test_available_for_http(self, ph, monkeypatch, config):
         # Create http at 80
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
         fe80 = ph.get_frontend(80)
         # Create tcp at 90
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')
         config['mode'] = 'tcp'
         config['external_port'] = 90
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
         fe90 = ph.get_frontend(90)
         # Get default stats frontend
         fe9000 = ph.get_frontend(9000)
@@ -223,58 +223,58 @@ class TestLibhaproxy():
         fe9000 = ph.get_frontend(9000)
         assert ph.available_for_http(fe9000) is False
 
-    def test_available_fort_tcp(self, ph, monkeypatch, config):
+    def test_available_for_tcp(self, ph, monkeypatch, config):
         # Create http at 80
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
         fe80 = ph.get_frontend(80)
         # Create tcp at 90
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')
         config['mode'] = 'tcp'
         config['external_port'] = 90
-        assert ph.process_config(config)['cfg_good'] is True
+        assert ph.process_configs([config])['cfg_good'] is True
         fe90 = ph.get_frontend(90)
         # Get default stats frontend
         fe9000 = ph.get_frontend(9000)
         # Verify tcp checks
-        assert ph.available_for_tcp(fe80, 'unit-mock-0') is False
-        assert ph.available_for_tcp(fe90, 'unit-mock-0') is False
-        assert ph.available_for_tcp(fe90, 'unit-mock-1') is True
+        assert ph.available_for_tcp(fe80, 'unit-mock-0-0') is False
+        assert ph.available_for_tcp(fe90, 'unit-mock-0-0') is False
+        assert ph.available_for_tcp(fe90, 'unit-mock-1-0') is True
         # Check stats port
-        assert ph.available_for_tcp(fe9000, 'unit-mock-0') is True
-        assert ph.available_for_tcp(fe9000, 'unit-mock-1') is True
+        assert ph.available_for_tcp(fe9000, 'unit-mock-0-0') is True
+        assert ph.available_for_tcp(fe9000, 'unit-mock-1-0') is True
         fe9000.port = 0  # Move from 9k so stats can enable
         ph.enable_stats()
         fe9000 = ph.get_frontend(9000)
-        assert ph.available_for_tcp(fe9000, 'unit-mock-0') is False
-        assert ph.available_for_tcp(fe9000, 'unit-mock-1') is False
+        assert ph.available_for_tcp(fe9000, 'unit-mock-0-0') is False
+        assert ph.available_for_tcp(fe9000, 'unit-mock-1-0') is False
 
     def test_clean_config(self, ph, monkeypatch, config):
         # Test adding and removing single unit
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
-        remote_unit, backend_name = ph.get_config_names(config)
-        ph.process_config(config)
+        remote_unit, backend_name = ph.get_config_names([config])[0]
+        ph.process_configs([config])
         assert ph.get_frontend(80, create=False) is not None
         ph.clean_config(remote_unit, backend_name)
         assert ph.get_frontend(80, create=False) is None
         # Setup mulpitle units to test with
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
-        assert ph.process_config(config)['cfg_good'] is True
-        unit_0, backend_0 = ph.get_config_names(config)
-        ph.process_config(config)
+        assert ph.process_configs([config])['cfg_good'] is True
+        unit_0, backend_0 = ph.get_config_names([config])[0]
+        ph.process_configs([config])
 
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')
-        unit_1, backend_1 = ph.get_config_names(config)
-        ph.process_config(config)
+        unit_1, backend_1 = ph.get_config_names([config])[0]
+        ph.process_configs([config])
 
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/2')
         config['group_id'] = 'test-group'
-        unit_2, backend_2 = ph.get_config_names(config)
-        ph.process_config(config)
+        unit_2, backend_2 = ph.get_config_names([config])[0]
+        ph.process_configs([config])
 
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/3')
-        unit_3, backend_3 = ph.get_config_names(config)
-        ph.process_config(config)
+        unit_3, backend_3 = ph.get_config_names([config])[0]
+        ph.process_configs([config])
         assert backend_2 == backend_3
 
         assert ph.get_frontend(80, create=False) is not None
@@ -325,7 +325,7 @@ class TestLibhaproxy():
         initial_time = os.path.getmtime(ph.proxy_config_file)
         # Modify config should change mtime
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
-        ph.process_config(config)
+        ph.process_configs([config])
         time2 = os.path.getmtime(ph.proxy_config_file)
         assert initial_time != time2
 
@@ -338,8 +338,8 @@ class TestLibhaproxy():
         assert mports.open_ports == ''
         # Ading a port opens it
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
-        unit_0, backend_0 = ph.get_config_names(config)
-        ph.process_config(config)
+        unit_0, backend_0 = ph.get_config_names([config])[0]
+        ph.process_configs([config])
         ph.update_ports()
         assert mports.open_ports == '80/tcp\n'
         # Duplicate ports aren't added
@@ -445,18 +445,18 @@ class TestLibhaproxy():
         # Remove letsencrypt but not other frontends
         ph.enable_letsencrypt()
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/0')
-        ph.process_config(config)
+        ph.process_configs([config])
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/1')
         config['external_port'] = 443
-        ph.process_config(config)
+        ph.process_configs([config])
         ph.disable_letsencrypt()
         fe80 = ph.get_frontend(80, create=False)
         fe443 = ph.get_frontend(443, create=False)
-        assert fe80.acl('unit-mock-0')
-        assert fe80.usebackend('unit-mock-0')
+        assert fe80.acl('unit-mock-0-0')
+        assert fe80.usebackend('unit-mock-0-0')
         assert fe443.binds()[0].attributes == []
-        assert fe443.acl('unit-mock-1')
-        assert fe443.usebackend('unit-mock-1')
+        assert fe443.acl('unit-mock-1-0')
+        assert fe443.usebackend('unit-mock-1-0')
         assert fe443.configs() == []
         assert ph.get_backend('letsencrypt-backend', create=False) is None
 

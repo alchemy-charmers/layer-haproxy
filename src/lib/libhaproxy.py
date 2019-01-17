@@ -37,118 +37,126 @@ class ProxyHelper():
         if save:
             self.save_config()
 
-    def get_config_names(self, config):
+    def get_config_names(self, configs):
         ''' Note this requires a remote unit '''
-        remote_unit = hookenv.remote_unit().replace('/', '-')
-        backend_name = config['group_id'] or remote_unit
-        return remote_unit, backend_name
+        names = []
+        for index, config in enumerate(configs):
+            remote_unit = hookenv.remote_unit().replace('/', '-') + f'-{index}'
+            backend_name = config['group_id'] or remote_unit
+            names.append((remote_unit, backend_name))
+        return names
 
-    def process_config(self, config):
+    def process_configs(self, configs):
         ''' Note this requires a remote unit '''
-        remote_unit, backend_name = self.get_config_names(config)
+        for names, config in zip(self.get_config_names(configs), configs):
+            remote_unit = names[0]
+            backend_name = names[1]
 
-        # Remove any prior configuration as it might have changed, do not write cfg file we still have edits to make
-        self.clean_config(unit=remote_unit, backend_name=backend_name, save=False)
+            # Remove any prior configuration as it might have changed, do not write cfg file we still have edits to make
+            self.clean_config(unit=remote_unit, backend_name=backend_name, save=False)
 
-        # Get the frontend, create if not present
-        frontend = self.get_frontend(config['external_port'])
+            # Get the frontend, create if not present
+            frontend = self.get_frontend(config['external_port'])
 
-        # urlbase use to accept / now they are added automatically
-        # to avoid errors strip it from old configs
-        if config['urlbase']:
-            config['urlbase'] = config['urlbase'].strip('/')
-
-        if config['mode'] == 'http':
-            if not self.available_for_http(frontend):
-                return({"cfg_good": False, "msg": "Port not available for http routing"})
-
-            # Add ACL's to the frontend
+            # urlbase use to accept / now they are added automatically
+            # to avoid errors strip it from old configs
             if config['urlbase']:
-                acl = Config.Acl(name=remote_unit, value='path_beg /{}/'.format(config['urlbase']))
-                frontend.add_acl(acl)
-                acl = Config.Acl(name=remote_unit, value='path /{}'.format(config['urlbase']))
-                frontend.add_acl(acl)
-            if config['subdomain']:
-                acl = Config.Acl(name=remote_unit, value='hdr_beg(host) -i {}'.format(config['subdomain']))
-                frontend.add_acl(acl)
-            # Add use_backend section to the frontend
-            use_backend = Config.UseBackend(backend_name=backend_name,
-                                            operator='if',
-                                            backend_condition=remote_unit,
-                                            is_default=False)
-            frontend.add_usebackend(use_backend)
-        if config['mode'] == 'tcp':
-            if not self.available_for_tcp(frontend, backend_name):
-                return({"cfg_good": False, "msg": "Frontend already in use can not setup tcp mode"})
+                config['urlbase'] = config['urlbase'].strip('/')
 
-            mode_config = Config.Config('mode tcp', '')
-            frontend.add_config(mode_config)
+            if config['mode'] == 'http':
+                if not self.available_for_http(frontend):
+                    return({"cfg_good": False, "msg": "Port not available for http routing"})
 
-            use_backend = Config.UseBackend(backend_name=backend_name,
-                                            operator='',
-                                            backend_condition='',
-                                            is_default=True)
-            frontend.add_usebackend(use_backend)
+                # Add ACL's to the frontend
+                if config['urlbase']:
+                    acl = Config.Acl(name=remote_unit, value='path_beg /{}/'.format(config['urlbase']))
+                    frontend.add_acl(acl)
+                    acl = Config.Acl(name=remote_unit, value='path /{}'.format(config['urlbase']))
+                    frontend.add_acl(acl)
+                if config['subdomain']:
+                    acl = Config.Acl(name=remote_unit, value='hdr_beg(host) -i {}'.format(config['subdomain']))
+                    frontend.add_acl(acl)
+                # Add use_backend section to the frontend
+                use_backend = Config.UseBackend(backend_name=backend_name,
+                                                operator='if',
+                                                backend_condition=remote_unit,
+                                                is_default=False)
+                frontend.add_usebackend(use_backend)
+            if config['mode'] == 'tcp':
+                if not self.available_for_tcp(frontend, backend_name):
+                    return({"cfg_good": False, "msg": "Frontend already in use can not setup tcp mode"})
 
-        # Get the backend, create if not present
-        backend = self.get_backend(backend_name)
+                mode_config = Config.Config('mode tcp', '')
+                frontend.add_config(mode_config)
 
-        # Add server to the backend
-        if config['mode'] == 'http':
-            # Add cookie config if not already present
-            cookie_found = False
-            cookie = 'cookie SERVERID insert indirect nocache'
-            for test_config in backend.configs():
-                if cookie in test_config.keyword:
-                    cookie_found = True
-            if not cookie_found:
-                backend.add_config(Config.Config(cookie, ''))
-            attributes = ['cookie {}'.format(remote_unit)]
-            # Add httpchk option if not present
-            if config['group_id']:
-                httpchk_found = False
-                httpchk = 'httpchk GET {} HTTP/1.0'.format(config['urlbase'] or '/')
-                for test_option in backend.options():
-                    if httpchk in test_option.keyword:
-                        httpchk_found = True
-                if not httpchk_found:
-                    backend.add_option(Config.Option(httpchk, ''))
-                attributes.append('check')
-            # Add rewrite-path if requested and not present
-            if config['rewrite-path'] and config['urlbase']:
-                rewrite_found = False
-                rewrite = 'http-request set-path %[path,regsub(^/{}/?,/)]'.format(config['urlbase'])
-                for test_cfg in backend.configs():
-                    if rewrite in test_cfg.keyword:
-                        rewrite_found = True
-                if not rewrite_found:
-                    backend.add_config(Config.Config(rewrite, ''))
-            if config['acl-local']:
-                if not backend.acl('local'):
-                    backend.add_acl(Config.Acl('local', 'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
-                    backend.add_config(Config.Config('http-request deny if !local', ''))
-            if config['proxypass']:
-                proxy_found = False
-                for test_option in backend.options():
-                    if 'forwardfor' in test_cfg.keyword:
-                        proxy_found = True
-                if not proxy_found:
-                    backend.add_option(Config.Option('forwardfor', ''))
-                if config['external_port'] == 443:
-                    forward_for = 'http-request set-header X-Forwarded-Proto https'
-                else:
-                    forward_for = 'http-request set-header X-Forwarded-Proto http'
-                backend.add_config(Config.Config(forward_for, ''))
-            if config['ssl']:
-                if config['ssl-verify']:
-                    ssl_attrib = 'ssl'
-                else:
-                    ssl_attrib = 'ssl verify none'
-                attributes.append(ssl_attrib)
-        else:
-            attributes = ['']
-        server = Config.Server(name=remote_unit, host=config['internal_host'], port=config['internal_port'], attributes=attributes)
-        backend.add_server(server)
+                use_backend = Config.UseBackend(backend_name=backend_name,
+                                                operator='',
+                                                backend_condition='',
+                                                is_default=True)
+                frontend.add_usebackend(use_backend)
+
+            # Get the backend, create if not present
+            backend = self.get_backend(backend_name)
+
+            # Add server to the backend
+            if config['mode'] == 'http':
+                # Add cookie config if not already present
+                cookie_found = False
+                cookie = 'cookie SERVERID insert indirect nocache'
+                for test_config in backend.configs():
+                    if cookie in test_config.keyword:
+                        cookie_found = True
+                if not cookie_found:
+                    backend.add_config(Config.Config(cookie, ''))
+                attributes = ['cookie {}'.format(remote_unit)]
+                # Add httpchk option if not present
+                if config['group_id']:
+                    httpchk_found = False
+                    httpchk = 'httpchk GET {} HTTP/1.0'.format(config['urlbase'] or '/')
+                    for test_option in backend.options():
+                        if httpchk in test_option.keyword:
+                            httpchk_found = True
+                    if not httpchk_found:
+                        backend.add_option(Config.Option(httpchk, ''))
+                    attributes.append('check')
+                # Add rewrite-path if requested and not present
+                if config['rewrite-path'] and config['urlbase']:
+                    rewrite_found = False
+                    rewrite = 'http-request set-path %[path,regsub(^/{}/?,/)]'.format(config['urlbase'])
+                    for test_cfg in backend.configs():
+                        if rewrite in test_cfg.keyword:
+                            rewrite_found = True
+                    if not rewrite_found:
+                        backend.add_config(Config.Config(rewrite, ''))
+                if config['acl-local']:
+                    if not backend.acl('local'):
+                        backend.add_acl(Config.Acl('local', 'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
+                        backend.add_config(Config.Config('http-request deny if !local', ''))
+                if config['proxypass']:
+                    proxy_found = False
+                    for test_option in backend.options():
+                        if 'forwardfor' in test_cfg.keyword:
+                            proxy_found = True
+                    if not proxy_found:
+                        backend.add_option(Config.Option('forwardfor', ''))
+                    if config['external_port'] == 443:
+                        forward_for = 'http-request set-header X-Forwarded-Proto https'
+                    else:
+                        forward_for = 'http-request set-header X-Forwarded-Proto http'
+                    backend.add_config(Config.Config(forward_for, ''))
+                if config['ssl']:
+                    if config['ssl-verify']:
+                        ssl_attrib = 'ssl'
+                    else:
+                        ssl_attrib = 'ssl verify none'
+                    attributes.append(ssl_attrib)
+            else:
+                attributes = ['']
+            server = Config.Server(name=remote_unit,
+                                   host=config['internal_host'],
+                                   port=config['internal_port'],
+                                   attributes=attributes)
+            backend.add_server(server)
 
         # Render new cfg file
         self.save_config()
