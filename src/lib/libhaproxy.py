@@ -23,11 +23,15 @@ class ProxyHelper():
             'letsencrypt-domains'].split(',')
         self.ssl_path = '/etc/haproxy/ssl/'
         self.letsencrypt_path = '/etc/letsencrypt/live/'
-        self.cert_files = []
-        for domain in self.domain_names:
-            self.cert_files.append("{}/{}.pem".format(
-                self.ssl_path,
-                domain))
+        self._cert_files = []
+
+    @property
+    def cert_files(self):
+        if not self._cert_files:
+            for domain in self.domain_names:
+                self._cert_files.append("{}/{}.pem".format(
+                    self.ssl_path, domain))
+        return self._cert_files
 
     @property
     def proxy_config(self):

@@ -367,13 +367,19 @@ class TestLibhaproxy():
         assert mports.open_ports == ''
 
     def test_merge_letsencrypt_certs(self, ph, cert):
-        assert not os.path.isfile(ph.cert_files[0])
+        # Check that no certs exist
+        for path in ph.cert_files:
+            assert not os.path.isfile(path)
+
+        # Generate all certs
         ph.merge_letsencrypt_certs()
-        print(ph.cert_files[0])
-        assert os.path.isfile(ph.cert_files[0])
-        with open(ph.cert_files[0], 'r') as cert_file:
-            assert cert_file.readline() == 'fullchain.pem\n'
-            assert cert_file.readline() == 'privkey.pem\n'
+
+        # Verify each cert
+        for path in ph.cert_files:
+            assert os.path.isfile(path)
+            with open(path, 'r') as cert_file:
+                assert cert_file.readline() == 'fullchain.pem\n'
+                assert cert_file.readline() == 'privkey.pem\n'
 
     def test_add_cron(self, ph, mock_crontab):
         action = 'test-action'
@@ -428,13 +434,12 @@ class TestLibhaproxy():
         ph.enable_letsencrypt()
         fe80 = ph.get_frontend(80, create=False)
         fe443 = ph.get_frontend(443, create=False)
-        # assert fe80.config_block['acls'][0].name == 'letsencrypt'
         assert fe80.usebackend('letsencrypt-backend')
-        assert 'mock.pem' in fe443.binds()[0].attributes[0]
+        assert 'mock-domain-1.pem' in fe443.binds()[0].attributes[0]
+        assert 'mock-domain-2.pem' in fe443.binds()[0].attributes[0]
         assert fe443.acl('letsencrypt')
         assert fe443.usebackend('letsencrypt-backend')
         assert fe443.config('reqirep', 'Destination:\\ https(.*) Destination:\\ http\\\\1 ')
-        # assert 'reqirep' in fe443.config_block['configs'][0][0]
 
     def test_disable_letsencrypt(self, ph, cert, mock_crontab, monkeypatch, config):
         # Remove letsencrypt and all unused sections

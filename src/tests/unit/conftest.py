@@ -35,12 +35,11 @@ def cert(monkeypatch):
 
     def wrapper(*args, **kwargs):
         content = None
-        if args[0].replace('//', '/') == '/etc/letsencrypt/live/mock/fullchain.pem':
-            content = 'fullchain.pem\n'
-            if 'b' in args[1]:
-                content = bytes(content, encoding='utf8')
-        elif args[0].replace('//', '/') == '/etc/letsencrypt/live/mock/privkey.pem':
-            content = 'privkey.pem\n'
+        if args[0].replace('//', '/').startswith('/etc/letsencrypt/live/'):
+            if "fullchain" in args[0]:
+                content = 'fullchain.pem\n'
+            elif "privkey" in args[0]:
+                content = 'privkey.pem\n'
             if 'b' in args[1]:
                 content = bytes(content, encoding='utf8')
         else:
@@ -85,7 +84,7 @@ def mock_hookenv_config(monkeypatch):
             cfg[key] = value['default']
 
         # Manually add cfg from other layers
-        cfg['letsencrypt-domains'] = 'mock'
+        cfg['letsencrypt-domains'] = 'mock-domain-1,mock-domain-2'
         return cfg
 
     monkeypatch.setattr('libhaproxy.hookenv.config', mock_config)
@@ -134,7 +133,6 @@ def mock_charm_dir(monkeypatch):
 
 
 @pytest.fixture
-# def ph(pyhaproxy, tmpdir, mock_ports, mock_service_reload, mock_charm_dir, monkeypatch):
 def ph(tmpdir, mock_layers, mock_hookenv_config, mock_ports, mock_service_reload, mock_charm_dir, monkeypatch):
     from libhaproxy import ProxyHelper
     ph = ProxyHelper()
@@ -144,10 +142,6 @@ def ph(tmpdir, mock_layers, mock_hookenv_config, mock_ports, mock_service_reload
     with open('./tests/unit/haproxy.cfg', 'r') as src_file:
         cfg_file.write(src_file.read())
     ph.proxy_config_file = cfg_file.strpath
-
-    # Patch the combined cert file to a tmpfile
-    crt_file = tmpdir.join("mock.pem")
-    ph.cert_files = [crt_file.strpath, ]
 
     # Redirect ssl_path to tmpdir
     ph.ssl_path = tmpdir.strpath
