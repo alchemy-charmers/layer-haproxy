@@ -19,10 +19,15 @@ class ProxyHelper():
             self.charm_config['version'])
         self.proxy_config_file = "/etc/haproxy/haproxy.cfg"
         self._proxy_config = None
-        self.domain_name = self.charm_config[
-            'letsencrypt-domains'].split(',')[0]
+        self.domain_names = self.charm_config[
+            'letsencrypt-domains'].split(',')
         self.ssl_path = '/etc/haproxy/ssl/'
-        self.cert_file = self.ssl_path + self.domain_name + '.pem'
+        self.letsencrypt_path = '/etc/letsencrypt/live/'
+        self.cert_files = []
+        for domain in self.domain_names:
+            self.cert_files.append("{}/{}.pem".format(
+                self.ssl_path,
+                domain))
 
     @property
     def proxy_config(self):
@@ -59,7 +64,7 @@ class ProxyHelper():
 
             # For backwards compatibility and easy upgrades,
             # let's check, incase we've moved from the old <app>-<id>
-            # style frontend names to the new multi-relation 
+            # style frontend names to the new multi-relation
             # <app>-<id>-<index> format - regex ^.*?(\d+)-(\d+)$
             legacy = self.legacy_name(backend_name)
             if legacy != backend_name:
@@ -238,7 +243,7 @@ class ProxyHelper():
         return True
 
     def legacy_name(self, name):
-        regex = re.compile('^.*?(\d+)-(\d+)$')
+        regex = re.compile(r'^.*?(\d+)-(\d+)$')
         matches = regex.search(name)
         if matches:
             # we are dealing with a new-style indexed relation
@@ -541,13 +546,16 @@ class ProxyHelper():
             return  # TODO: Should I error here or is just returning a log ok?
 
         # create the merged .pem for HAProxy
-        self.merge_letsencrypt_cert()
+        self.merge_letsencrypt_certs()
 
-        # Configure the frontend 443
+        # Configure the frontend 443 for all certs
+        # given we terminate TLS, we don't need to
+        # configure SNI ACLs, we just need to make
+        # sure haproxy knows about all the certs
         frontend = self.get_frontend(443)
         if not len(frontend.binds()[0].attributes):
             frontend.binds()[0].attributes.append('ssl crt {}'.format(
-                self.cert_file))
+                self.cert_files.join(' ')))
         if first_run:
             frontend.add_acl(acl)
             frontend.add_usebackend(use_backend)
@@ -574,30 +582,35 @@ class ProxyHelper():
                           save=save)
         self.remove_cert_cron()
 
-    def merge_letsencrypt_cert(self):
-        letsencrypt_live_folder = '/etc/letsencrypt/live/{}/'.format(
-            self.domain_name)
-        with open(self.cert_file, 'wb') as outFile:
-            with open(letsencrypt_live_folder + 'fullchain.pem', 'rb') \
-                    as chainFile:
-                outFile.write(chainFile.read())
-            with open(letsencrypt_live_folder + 'privkey.pem', 'rb') \
-                    as privFile:
-                outFile.write(privFile.read())
+    def merge_letsencrypt_certs(self):
+        for domain in self.domain_names:
+            letsencrypt_live_folder = "{}/{}/".format(
+                self.letsencrypt_path,
+                domain)
+            cert_file = "{}/{}.pem".format(
+                self.ssl_path,
+                domain)
+            with open(cert_file, 'wb') as outFile:
+                with open(letsencrypt_live_folder + 'fullchain.pem', 'rb') \
+                        as chainFile:
+                    outFile.write(chainFile.read())
+                with open(letsencrypt_live_folder + 'privkey.pem', 'rb') \
+                        as privFile:
+                    outFile.write(privFile.read())
 
-    def renew_cert(self, full=True):
-        hookenv.log("Renewing cert", "INFO")
+    def renew_certs(self, full=True):
+        hookenv.log("Renewing certs", "INFO")
         if full:
             # Calling a full disable/enable to clean and re-write the config
             # to catch domain changes in the charm config
-            hookenv.log("Performing full domain register", "INFO")
+            hookenv.log("Performing full domain registers", "INFO")
             self.disable_letsencrypt()
             self.enable_letsencrypt()
         else:
             hookenv.log("Performing renew only", "INFO")
             letsencrypt.renew()
-            # create the merged .pem for HAProxy
-            self.merge_letsencrypt_cert()
+            # create the merged .pem files for HAProxy
+            self.merge_letsencrypt_certs()
 
     def renew_upnp(self):
         hookenv.log("Renewing upnp port requests", "INFO")
