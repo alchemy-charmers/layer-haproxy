@@ -4,6 +4,7 @@ import mock
 
 from collections import defaultdict
 
+
 @pytest.fixture
 def config():
     defaults = {'mode': 'http',
@@ -34,11 +35,11 @@ def cert(monkeypatch):
 
     def wrapper(*args, **kwargs):
         content = None
-        if args[0] == '/etc/letsencrypt/live/mock/fullchain.pem':
+        if args[0].replace('//', '/') == '/etc/letsencrypt/live/mock/fullchain.pem':
             content = 'fullchain.pem\n'
             if 'b' in args[1]:
                 content = bytes(content, encoding='utf8')
-        elif args[0] == '/etc/letsencrypt/live/mock/privkey.pem':
+        elif args[0].replace('//', '/') == '/etc/letsencrypt/live/mock/privkey.pem':
             content = 'privkey.pem\n'
             if 'b' in args[1]:
                 content = bytes(content, encoding='utf8')
@@ -127,7 +128,6 @@ def mock_ports(monkeypatch, open_ports=''):
     #                     mock.Mock(spec=mports, wraps=mports))
 
 
-
 @pytest.fixture
 def mock_charm_dir(monkeypatch):
     monkeypatch.setattr('libhaproxy.hookenv.charm_dir', lambda: '/mock/charm/dir')
@@ -147,7 +147,10 @@ def ph(tmpdir, mock_layers, mock_hookenv_config, mock_ports, mock_service_reload
 
     # Patch the combined cert file to a tmpfile
     crt_file = tmpdir.join("mock.pem")
-    ph.cert_file = crt_file.strpath
+    ph.cert_files = [crt_file.strpath, ]
+
+    # Redirect ssl_path to tmpdir
+    ph.ssl_path = tmpdir.strpath
 
     # Any other functions that load PH will get this version
     monkeypatch.setattr('libhaproxy.ProxyHelper', lambda: ph)

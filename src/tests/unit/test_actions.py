@@ -9,7 +9,7 @@ class TestActions():
         monkeypatch.setattr(ph, 'disable_letsencrypt', mocks['disable'])
         monkeypatch.setattr(ph, 'enable_letsencrypt', mocks['enable'])
         monkeypatch.setattr('libhaproxy.letsencrypt.renew', mocks['renew'])
-        monkeypatch.setattr(ph, 'merge_letsencrypt_cert', mocks['merge'])
+        monkeypatch.setattr(ph, 'merge_letsencrypt_certs', mocks['merge'])
         # Verify call counts
         assert mocks['disable'].call_count == 0
         assert mocks['enable'].call_count == 0

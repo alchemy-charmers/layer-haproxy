@@ -556,7 +556,7 @@ class ProxyHelper():
         frontend = self.get_frontend(443)
         if not len(frontend.binds()[0].attributes):
             frontend.binds()[0].attributes.append('ssl crt {}'.format(
-                self.cert_files.join(' ')))
+                ' '.join(self.cert_files)))
         if first_run:
             frontend.add_acl(acl)
             frontend.add_usebackend(use_backend)

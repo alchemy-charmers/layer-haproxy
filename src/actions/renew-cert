@@ -15,5 +15,5 @@ except:
 
 hookenv.log("Calling with full= {}".format(full), 'DEBUG')
 ph = ProxyHelper()
-ph.renew_cert(full=full)
+ph.renew_certs(full=full)
 

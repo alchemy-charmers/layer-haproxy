@@ -366,11 +366,12 @@ class TestLibhaproxy():
         print(mports.open_ports)
         assert mports.open_ports == ''
 
-    def test_merge_letsencrypt_cert(self, ph, cert):
-        assert not os.path.isfile(ph.cert_file)
-        ph.merge_letsencrypt_cert()
-        assert os.path.isfile(ph.cert_file)
-        with open(ph.cert_file, 'r') as cert_file:
+    def test_merge_letsencrypt_certs(self, ph, cert):
+        assert not os.path.isfile(ph.cert_files[0])
+        ph.merge_letsencrypt_certs()
+        print(ph.cert_files[0])
+        assert os.path.isfile(ph.cert_files[0])
+        with open(ph.cert_files[0], 'r') as cert_file:
             assert cert_file.readline() == 'fullchain.pem\n'
             assert cert_file.readline() == 'privkey.pem\n'
 
@@ -464,24 +465,24 @@ class TestLibhaproxy():
         assert fe443.configs() == []
         assert ph.get_backend('letsencrypt-backend', create=False) is None
 
-    def test_renew_cert(self, ph, monkeypatch):
+    def test_renew_certs(self, ph, monkeypatch):
         import mock
         mocks = {'disable': mock.Mock(), 'enable': mock.Mock(), 'renew':
                  mock.Mock(), 'merge': mock.Mock()}
         monkeypatch.setattr(ph, 'disable_letsencrypt', mocks['disable'])
         monkeypatch.setattr(ph, 'enable_letsencrypt', mocks['enable'])
         monkeypatch.setattr('libhaproxy.letsencrypt.renew', mocks['renew'])
-        monkeypatch.setattr(ph, 'merge_letsencrypt_cert', mocks['merge'])
+        monkeypatch.setattr(ph, 'merge_letsencrypt_certs', mocks['merge'])
         assert mocks['disable'].call_count == 0
         assert mocks['enable'].call_count == 0
         assert mocks['renew'].call_count == 0
         assert mocks['merge'].call_count == 0
-        ph.renew_cert()
+        ph.renew_certs()
         assert mocks['disable'].call_count == 1
         assert mocks['enable'].call_count == 1
         assert mocks['renew'].call_count == 0
         assert mocks['merge'].call_count == 0
-        ph.renew_cert(full=False)
+        ph.renew_certs(full=False)
         assert mocks['disable'].call_count == 1
         assert mocks['enable'].call_count == 1
         assert mocks['renew'].call_count == 1
