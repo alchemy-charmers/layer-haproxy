@@ -69,8 +69,8 @@ class ProxyHelper():
             legacy = self.legacy_name(backend_name)
             if legacy != backend_name:
                 hookenv.log('Cleaning any legacy configs for {} ({})'.format(
-                                remote_unit,
-                                legacy),
+                            remote_unit,
+                            legacy),
                             'INFO')
                 self.clean_config(
                     unit=legacy,
@@ -238,7 +238,8 @@ class ProxyHelper():
         if frontend.name == "stats":
             return False
         for config in frontend.configs():
-            if "mode tcp" in config.keyword:
+            if "mode" in config.keyword and\
+               "tcp" in config.value:
                 return False
         return True
 
@@ -472,11 +473,11 @@ class ProxyHelper():
                    self.charm_config['stats-port'] == int(frontend.port):
                     hookenv.log("Stats port set to be closed {}".format(
                         frontend.port),
-                                "DEBUG")
+                        "DEBUG")
                 else:
                     hookenv.log("Port already open {}".format(
                         frontend.port),
-                                "DEBUG")
+                        "DEBUG")
                     opened_ports.remove(frontend.port)
             else:
                 if self.charm_config['enable-stats'] and \
@@ -484,7 +485,7 @@ class ProxyHelper():
                    self.charm_config['stats-port'] == int(frontend.port):
                     hookenv.log("Not opening stats port {}".format(
                         frontend.port),
-                                "DEBUG")
+                        "DEBUG")
                 else:
                     hookenv.log("Opening {}".format(frontend.port), "DEBUG")
                     hookenv.open_port(frontend.port)
