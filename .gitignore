@@ -4,3 +4,4 @@ VERSION
 *.pytest_cache/
 *__pycache__/
 *.pyc
+repo-info

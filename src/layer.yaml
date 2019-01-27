@@ -1,2 +1,11 @@
-includes: ['layer:basic','layer:version','layer:hostname','layer:upnp','interface:reverseproxy','layer:letsencrypt']  # if you use any interfaces, add them here
-repo: git@github.com:chris-sanders/layer-haproxy.git
+includes: 
+  - layer:basic
+  - layer:version
+  - layer:hostname
+  - layer:upnp
+  - interface:reverseproxy
+  - layer:letsencrypt
+options:
+  version:
+    file_name: "repo-info"
+ repo: https://github.com/pirate-charmers/layer-haproxy
