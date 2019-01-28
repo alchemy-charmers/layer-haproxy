@@ -302,8 +302,9 @@ class ProxyHelper():
                     # be.config_block.remove(server)
 
         # Remove any relation frontend if it doesn't have use_backend
-        self.proxy_config.frontends[:] = [fe for fe in self.proxy_config.frontends if len(fe.usebackends()) > 0 or
-                                          not fe.name.startswith('relation')]
+        self.proxy_config.frontends[:] = [fe for fe in
+                                          self.proxy_config.frontends if
+                                          len(fe.usebackends()) > 0 or not fe.name.startswith('relation')]
 
         # Remove any backend with no server
         self.proxy_config.backends[:] = [be for be in self.proxy_config.backends if len(be.servers()) > 0]

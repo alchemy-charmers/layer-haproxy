@@ -4,6 +4,7 @@ import mock
 
 from collections import defaultdict
 
+
 @pytest.fixture
 def config():
     defaults = {'mode': 'http',
@@ -125,7 +126,6 @@ def mock_ports(monkeypatch, open_ports=''):
     #                     mock.Mock(spec=mports, wraps=mports))
     # monkeypatch.setattr('libhaproxy.subprocess.check_call',
     #                     mock.Mock(spec=mports, wraps=mports))
-
 
 
 @pytest.fixture
