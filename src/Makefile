@@ -5,7 +5,9 @@ all: lint unit_test
 
 .PHONY: clean
 clean:
-	@rm -rf .tox
+	@echo "Cleaning files"
+	@if [ -d ./.tox ] ; then rm -r ./.tox ; fi
+	@if [ -d ./.pytest_cache ] ; then rm -r ./.pytest_cache ; fi
 
 .PHONY: apt_prereqs
 apt_prereqs:
@@ -18,6 +20,10 @@ lint: apt_prereqs
 	@PATH=.tox/amulet/bin flake8 $(wildcard hooks reactive lib unit_tests tests)
 
 .PHONY: unit_test
-unit_test: apt_prereqs
-	@echo Starting tests...
-	tox
+unittest: apt_prereqs
+	@echo Starting unit tests
+	@tox -e unit
+
+functionaltest:
+	@tox -e functional
+

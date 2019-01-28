@@ -1,4 +1,4 @@
-includes: 
+includes:
   - layer:basic
   - layer:version
   - layer:hostname
@@ -8,4 +8,4 @@ includes:
 options:
   version:
     file_name: "repo-info"
- repo: https://github.com/pirate-charmers/layer-haproxy
+repo: https://github.com/pirate-charmers/layer-haproxy
