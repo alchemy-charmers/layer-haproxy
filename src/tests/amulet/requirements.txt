@@ -1,5 +1,0 @@
-amulet
-requests
-pytest
-mock
-flake8
