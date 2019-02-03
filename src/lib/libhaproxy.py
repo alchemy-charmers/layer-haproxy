@@ -239,7 +239,7 @@ class ProxyHelper():
         return True
 
     def legacy_name(self, name):
-        regex = re.compile('^.*?(\d+)-(\d+)$')
+        regex = re.compile(r'^.*?(\d+)-(\d+)$')
         matches = regex.search(name)
         if matches:
             # we are dealing with a new-style indexed relation
