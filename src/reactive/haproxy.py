@@ -33,8 +33,11 @@ def configure_haproxy():
     # Enable udp for rsyslog
     for line in fileinput.input('/etc/rsyslog.conf', inplace=True):
         line = line.replace('#module(load="imudp")', 'module(load="imudp")')
-        line = line.replace('#input(type="imudp" port="514")', 'input(type="imudp" port="514")')
-        print(line, end='')  # end statement to avoid inserting new lines at the end of the line
+        line = line.replace(
+            '#input(type="imudp" port="514")',
+            'input(type="imudp" port="514")')
+        print(line, end='')
+        # end statement above avoids inserting new lines at EOL
     host.service_restart('rsyslog.service')
     if ph.charm_config['enable-stats']:
         ph.enable_stats()
@@ -53,7 +56,13 @@ def configure_haproxy():
 def configure_relation(reverseproxy, *args):
     hookenv.status_set('maintenance', 'Setting up relation')
     hookenv.log("Received config: {}".format(reverseproxy.config), "Info")
-    status = ph.process_config(reverseproxy.config)
+    # Process either dict or list of dicts to support legacy relations
+    configs = []
+    if isinstance(reverseproxy.config, dict):
+        configs.append(reverseproxy.config)
+    else:
+        configs = reverseproxy.config
+    status = ph.process_configs(configs)
     reverseproxy.set_cfg_status(**status)
     hookenv.status_set('active', '')
 
@@ -61,8 +70,21 @@ def configure_relation(reverseproxy, *args):
 @when_all('reverseproxy.triggered', 'reverseproxy.departed')
 def remove_relation(reverseproxy, *args):
     hookenv.log("Removing config for: {}".format(hookenv.remote_unit()))
-    unit_name, backend_name = ph.get_config_names(reverseproxy.config)
-    ph.clean_config(unit=unit_name, backend_name=backend_name)
+    # Process either dict or list of dicts to support legacy relations
+    # TODO: This doesn't seem to clean up frontends and close ports
+    configs = []
+    if isinstance(reverseproxy.config, dict):
+        configs.append(reverseproxy.config)
+    else:
+        configs = reverseproxy.config
+
+    for names in ph.get_config_names(configs):
+        unit_name = names[0]
+        backend_name = names[1]
+        hookenv.log("Cleaning on depart for {}, {}".format(
+            unit_name,
+            backend_name), 'DEBUG')
+        ph.clean_config(unit=unit_name, backend_name=backend_name)
 
 
 @when('config.changed.version')
@@ -71,7 +93,8 @@ def version_changed():
         return
     hookenv.log('Version change will not affect running units', 'WARNING')
     hookenv.status_set('active', "version change to {} not applied, redeploy"
-                       "unit for version change".format(ph.charm_config['version']))
+                       "unit for version change".format(
+                           ph.charm_config['version']))
 
 
 @when_any('config.changed.enable-stats',

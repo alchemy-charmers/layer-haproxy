@@ -8,23 +8,27 @@ from crontab import CronTab
 import pyhaproxy.config as Config
 import reactive.letsencrypt as letsencrypt
 import subprocess
+import re
 
 
 class ProxyHelper():
     def __init__(self):
         self.charm_config = hookenv.config()
         self.letsencrypt_config = layer.options('letsencrypt')
-        self.ppa = "ppa:vbernat/haproxy-{}".format(self.charm_config['version'])
+        self.ppa = "ppa:vbernat/haproxy-{}".format(
+            self.charm_config['version'])
         self.proxy_config_file = "/etc/haproxy/haproxy.cfg"
         self._proxy_config = None
-        self.domain_name = self.charm_config['letsencrypt-domains'].split(',')[0]
+        self.domain_name = self.charm_config[
+            'letsencrypt-domains'].split(',')[0]
         self.ssl_path = '/etc/haproxy/ssl/'
         self.cert_file = self.ssl_path + self.domain_name + '.pem'
 
     @property
     def proxy_config(self):
         if not self._proxy_config:
-            self._proxy_config = Parser(self.proxy_config_file).build_configuration()
+            self._proxy_config = Parser(
+                self.proxy_config_file).build_configuration()
         return self._proxy_config
 
     def add_timeout_tunnel(self, timeout='1h', save=True):
@@ -37,118 +41,189 @@ class ProxyHelper():
         if save:
             self.save_config()
 
-    def get_config_names(self, config):
+    def get_config_names(self, configs):
         ''' Note this requires a remote unit '''
-        remote_unit = hookenv.remote_unit().replace('/', '-')
-        backend_name = config['group_id'] or remote_unit
-        return remote_unit, backend_name
+        names = []
+        for index, config in enumerate(configs):
+            remote_unit = hookenv.remote_unit().replace(
+                '/', '-') + '-{}'.format(index)
+            backend_name = config['group_id'] or remote_unit
+            names.append((remote_unit, backend_name))
+        return names
 
-    def process_config(self, config):
+    def process_configs(self, configs):
         ''' Note this requires a remote unit '''
-        remote_unit, backend_name = self.get_config_names(config)
+        for names, config in zip(self.get_config_names(configs), configs):
+            remote_unit = names[0]
+            backend_name = names[1]
 
-        # Remove any prior configuration as it might have changed, do not write cfg file we still have edits to make
-        self.clean_config(unit=remote_unit, backend_name=backend_name, save=False)
+            # For backwards compatibility and easy upgrades,
+            # let's check, incase we've moved from the old <app>-<id>
+            # style frontend names to the new multi-relation
+            # <app>-<id>-<index> format - regex ^.*?(\d+)-(\d+)$
+            legacy = self.legacy_name(backend_name)
+            if legacy != backend_name:
+                hookenv.log('Cleaning any legacy configs for {} ({})'.format(
+                            remote_unit,
+                            legacy),
+                            'INFO')
+                self.clean_config(
+                    unit=legacy,
+                    backend_name=legacy,
+                    save=False)
 
-        # Get the frontend, create if not present
-        frontend = self.get_frontend(config['external_port'])
+            # Remove any prior configuration as it might have changed
+            # do not write cfg file we still have edits to make
+            hookenv.log('Cleaning configs for remote {}, backend {}'.format(
+                remote_unit,
+                backend_name), 'DEBUG')
+            self.clean_config(
+                unit=remote_unit,
+                backend_name=backend_name,
+                save=False)
 
-        # urlbase use to accept / now they are added automatically
-        # to avoid errors strip it from old configs
-        if config['urlbase']:
-            config['urlbase'] = config['urlbase'].strip('/')
+            # Get the frontend, create if not present
+            frontend = self.get_frontend(config['external_port'])
 
-        if config['mode'] == 'http':
-            if not self.available_for_http(frontend):
-                return({"cfg_good": False, "msg": "Port not available for http routing"})
-
-            # Add ACL's to the frontend
+            # urlbase use to accept / now they are added automatically
+            # to avoid errors strip it from old configs
             if config['urlbase']:
-                acl = Config.Acl(name=remote_unit, value='path_beg /{}/'.format(config['urlbase']))
-                frontend.add_acl(acl)
-                acl = Config.Acl(name=remote_unit, value='path /{}'.format(config['urlbase']))
-                frontend.add_acl(acl)
-            if config['subdomain']:
-                acl = Config.Acl(name=remote_unit, value='hdr_beg(host) -i {}'.format(config['subdomain']))
-                frontend.add_acl(acl)
-            # Add use_backend section to the frontend
-            use_backend = Config.UseBackend(backend_name=backend_name,
-                                            operator='if',
-                                            backend_condition=remote_unit,
-                                            is_default=False)
-            frontend.add_usebackend(use_backend)
-        if config['mode'] == 'tcp':
-            if not self.available_for_tcp(frontend, backend_name):
-                return({"cfg_good": False, "msg": "Frontend already in use can not setup tcp mode"})
+                config['urlbase'] = config['urlbase'].strip('/')
 
-            mode_config = Config.Config('mode tcp', '')
-            frontend.add_config(mode_config)
+            hookenv.log('Checking frontend {}'.format(
+                str(frontend)), 'DEBUG')
 
-            use_backend = Config.UseBackend(backend_name=backend_name,
-                                            operator='',
-                                            backend_condition='',
-                                            is_default=True)
-            frontend.add_usebackend(use_backend)
+            if config['mode'] == 'http':
+                if not self.available_for_http(frontend):
+                    return({"cfg_good": False,
+                            "msg": "Port not available for http routing"})
 
-        # Get the backend, create if not present
-        backend = self.get_backend(backend_name)
+                # Add ACL's to the frontend
+                if config['urlbase']:
+                    acl = Config.Acl(
+                        name=remote_unit,
+                        value='path_beg /{}/'.format(config['urlbase']))
+                    frontend.add_acl(acl)
+                    acl = Config.Acl(name=remote_unit,
+                                     value='path /{}'.format(
+                                         config['urlbase']))
+                    frontend.add_acl(acl)
+                if config['subdomain']:
+                    acl = Config.Acl(name=remote_unit,
+                                     value='hdr_beg(host) -i {}'.format(
+                                         config['subdomain']))
+                    frontend.add_acl(acl)
 
-        # Add server to the backend
-        if config['mode'] == 'http':
-            # Add cookie config if not already present
-            cookie_found = False
-            cookie = 'cookie SERVERID insert indirect nocache'
-            for test_config in backend.configs():
-                if cookie in test_config.keyword:
-                    cookie_found = True
-            if not cookie_found:
-                backend.add_config(Config.Config(cookie, ''))
-            attributes = ['cookie {}'.format(remote_unit)]
-            # Add httpchk option if not present
-            if config['group_id']:
-                httpchk_found = False
-                httpchk = 'httpchk GET {} HTTP/1.0'.format(config['urlbase'] or '/')
-                for test_option in backend.options():
-                    if httpchk in test_option.keyword:
-                        httpchk_found = True
-                if not httpchk_found:
-                    backend.add_option(Config.Option(httpchk, ''))
-                attributes.append('check')
-            # Add rewrite-path if requested and not present
-            if config['rewrite-path'] and config['urlbase']:
-                rewrite_found = False
-                rewrite = 'http-request set-path %[path,regsub(^/{}/?,/)]'.format(config['urlbase'])
-                for test_cfg in backend.configs():
-                    if rewrite in test_cfg.keyword:
-                        rewrite_found = True
-                if not rewrite_found:
-                    backend.add_config(Config.Config(rewrite, ''))
-            if config['acl-local']:
-                if not backend.acl('local'):
-                    backend.add_acl(Config.Acl('local', 'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
-                    backend.add_config(Config.Config('http-request deny if !local', ''))
-            if config['proxypass']:
-                proxy_found = False
-                for test_option in backend.options():
-                    if 'forwardfor' in test_cfg.keyword:
-                        proxy_found = True
-                if not proxy_found:
-                    backend.add_option(Config.Option('forwardfor', ''))
-                if config['external_port'] == 443:
-                    forward_for = 'http-request set-header X-Forwarded-Proto https'
-                else:
-                    forward_for = 'http-request set-header X-Forwarded-Proto http'
-                backend.add_config(Config.Config(forward_for, ''))
-            if config['ssl']:
-                if config['ssl-verify']:
-                    ssl_attrib = 'ssl'
-                else:
-                    ssl_attrib = 'ssl verify none'
-                attributes.append(ssl_attrib)
-        else:
-            attributes = ['']
-        server = Config.Server(name=remote_unit, host=config['internal_host'], port=config['internal_port'], attributes=attributes)
-        backend.add_server(server)
+                # Add use_backend section to the frontend
+                use_backend = Config.UseBackend(backend_name=backend_name,
+                                                operator='if',
+                                                backend_condition=remote_unit,
+                                                is_default=False)
+                frontend.add_usebackend(use_backend)
+
+            if config['mode'] == 'tcp':
+                if not self.available_for_tcp(frontend, backend_name):
+                    return({"cfg_good": False,
+                            "msg": ("Frontend already in use "
+                                    "can not setup tcp mode")})
+
+                mode_config = Config.Config('mode', 'tcp')
+                frontend.add_config(mode_config)
+
+                # clean use backends for tcp backends, in case there is
+                # any cruft left over from legacy configs
+                for usebackend in frontend.usebackends():
+                    frontend.remove_usebackend(usebackend.backend_name)
+
+                use_backend = Config.UseBackend(backend_name=backend_name,
+                                                operator='',
+                                                backend_condition='',
+                                                is_default=True)
+                frontend.add_usebackend(use_backend)
+
+            # Get the backend, create if not present
+            backend = self.get_backend(backend_name)
+
+            # Set sensible connection checking parameter
+            # by default. This will work for both TCP
+            # and HTTP backends, if a group-id is specified,
+            # nicer HTTP checks for HTTP backends will also
+            # be enabled to perform HTTP requests as part of
+            # checking backend health
+            attributes = ['check fall 3 rise 2']
+
+            # Add server to the backend
+            # Firstly, set the mode on the backedn to match
+            # the frontend
+            backend.add_config(Config.Config('mode', config['mode']))
+
+            # Now, for HTTP specific configuration
+            if config['mode'] == 'http':
+                # Add cookie config if not already present
+                cookie_found = False
+                cookie = 'cookie SERVERID insert indirect nocache'
+                for test_config in backend.configs():
+                    if cookie in test_config.keyword:
+                        cookie_found = True
+                if not cookie_found:
+                    backend.add_config(Config.Config(cookie, ''))
+                attributes.append('cookie {}'.format(remote_unit))
+                # Add httpchk option if not present
+                if config['group_id']:
+                    httpchk_found = False
+                    httpchk = 'httpchk GET {} HTTP/1.0'.format(
+                        config['urlbase'] or '/')
+                    for test_option in backend.options():
+                        if httpchk in test_option.keyword:
+                            httpchk_found = True
+                    if not httpchk_found:
+                        backend.add_option(Config.Option(httpchk, ''))
+                    attributes.append('check')
+                # Add rewrite-path if requested and not present
+                if config['rewrite-path'] and config['urlbase']:
+                    rewrite_found = False
+                    rewrite = ("http-request set-path "
+                               "%[path,regsub(^/{}/?,/)]").format(
+                                   config['urlbase'])
+                    for test_cfg in backend.configs():
+                        if rewrite in test_cfg.keyword:
+                            rewrite_found = True
+                    if not rewrite_found:
+                        backend.add_config(Config.Config(rewrite, ''))
+                if config['acl-local']:
+                    if not backend.acl('local'):
+                        backend.add_acl(
+                            Config.Acl('local',
+                                       ("src 10.0.0.0/8 "
+                                        "192.168.0.0/16 "
+                                        "127.0.0.0/8")))
+                        backend.add_config(
+                            Config.Config('http-request deny if !local', ''))
+                if config['proxypass']:
+                    proxy_found = False
+                    for test_option in backend.options():
+                        if 'forwardfor' in test_cfg.keyword:
+                            proxy_found = True
+                    if not proxy_found:
+                        backend.add_option(Config.Option('forwardfor', ''))
+                    if config['external_port'] == 443:
+                        forward_for = ("http-request set-header "
+                                       "X-Forwarded-Proto https")
+                    else:
+                        forward_for = ("http-request set-header "
+                                       "X-Forwarded-Proto http")
+                    backend.add_config(Config.Config(forward_for, ''))
+                if config['ssl']:
+                    if config['ssl-verify']:
+                        ssl_attrib = 'ssl'
+                    else:
+                        ssl_attrib = 'ssl verify none'
+                    attributes.append(ssl_attrib)
+            server = Config.Server(name=remote_unit,
+                                   host=config['internal_host'],
+                                   port=config['internal_port'],
+                                   attributes=attributes)
+            backend.add_server(server)
 
         # Render new cfg file
         self.save_config()
@@ -158,9 +233,22 @@ class ProxyHelper():
         if frontend.name == "stats":
             return False
         for config in frontend.configs():
-            if "mode tcp" in config.keyword:
+            if "mode" in config.keyword and\
+               "tcp" in config.value:
                 return False
         return True
+
+    def legacy_name(self, name):
+        regex = re.compile(r'^.*?(\d+)-(\d+)$')
+        matches = regex.search(name)
+        if matches:
+            # we are dealing with a new-style indexed relation
+            # we should remove any old-style config
+            index_suffix = '-{}'.format(
+                matches.group(2))
+            return name.rstrip(index_suffix)
+        else:
+            return name
 
     def available_for_tcp(self, frontend, backend_name):
         if len(frontend.acls()):
@@ -168,7 +256,12 @@ class ProxyHelper():
         if len(frontend.usebackends()):
             valid_backend = False
             for ub in frontend.usebackends():
-                if backend_name == ub.backend_name:
+                if ub.backend_name == backend_name:
+                    valid_backend = True
+                # also check for legacy backend name in
+                # case we've upgrades
+                if ub.backend_name == self.legacy_name(
+                        backend_name):
                     valid_backend = True
             if not valid_backend:
                 return False
@@ -179,24 +272,47 @@ class ProxyHelper():
         self.disable_stats(save=False)
 
         # Check that no frontend exists with conflicting port
-        if self.get_frontend(port=self.charm_config['stats-port'], create=False) is not None:
-            hookenv.log("Stats port {} already in use".format(self.charm_config['stats-port']), 'ERROR')
+        if self.get_frontend(
+                port=self.charm_config['stats-port'],
+                create=False) is not None:
+            hookenv.log("Stats port {} already in use".format(
+                self.charm_config['stats-port']), 'ERROR')
             if save:
                 self.save_config()
             return False
 
         # Generate new front end for stats
-        user_string = '{}:{}'.format(self.charm_config['stats-user'], self.charm_config['stats-passwd'])
+        user_string = '{}:{}'.format(
+            self.charm_config['stats-user'],
+            self.charm_config['stats-passwd'])
         config_block = []
-        config_block.append(Config.Bind('0.0.0.0', self.charm_config['stats-port'], None))
-        config_block.append(Config.Config('stats enable', ''))
-        config_block.append(Config.Config('stats auth {}'.format(user_string), ''))
-        config_block.append(Config.Config('stats uri {}'.format(self.charm_config['stats-url']),
-                                          ''))
+        config_block.append(
+            Config.Bind(
+                '0.0.0.0', self.charm_config['stats-port'], None))
+        config_block.append(
+            Config.Config(
+                'stats enable', ''))
+        config_block.append(
+            Config.Config(
+                'stats auth {}'.format(
+                    user_string), ''))
+        config_block.append(
+            Config.Config(
+                'stats uri {}'.format(
+                    self.charm_config['stats-url']), ''))
         if self.charm_config['stats-local']:
-            config_block.append(Config.Acl('local', 'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
-            config_block.append(Config.Config('http-request deny if !local', ''))
-        frontend = Config.Frontend('stats', '0.0.0.0', str(self.charm_config['stats-port']), config_block)
+            config_block.append(
+                Config.Acl(
+                    'local',
+                    'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
+            config_block.append(
+                Config.Config(
+                    'http-request deny if !local', ''))
+        frontend = Config.Frontend(
+            'stats',
+            '0.0.0.0',
+            str(self.charm_config['stats-port']),
+            config_block)
         self.proxy_config.frontends.append(frontend)
         if save:
             self.save_config()
@@ -204,7 +320,8 @@ class ProxyHelper():
 
     def disable_stats(self, save=True):
         # Remove any previous stats frontend
-        self.proxy_config.frontends[:] = [fe for fe in self.proxy_config.frontends if fe.name != 'stats']
+        self.proxy_config.frontends[:] = [
+            fe for fe in self.proxy_config.frontends if fe.name != 'stats']
         if save:
             self.save_config()
 
@@ -247,7 +364,10 @@ class ProxyHelper():
             fe.remove_usebackend(backend_name)
 
         # Clean the config
-        self.clean_config(unit=backend_name, backend_name=backend_name, save=save)
+        self.clean_config(
+            unit=backend_name,
+            backend_name=backend_name,
+            save=save)
 
     def get_frontend(self, port=None, create=True):
         port = str(port)
@@ -262,7 +382,11 @@ class ProxyHelper():
         if frontend is None and create:
             hookenv.log("Creating frontend for port {}".format(port), "INFO")
             config_block = [Config.Bind('0.0.0.0', port, None)]
-            frontend = Config.Frontend('relation-{}'.format(port), '0.0.0.0', port, config_block)
+            frontend = Config.Frontend(
+                'relation-{}'.format(port),
+                '0.0.0.0',
+                port,
+                config_block)
             self.proxy_config.frontends.append(frontend)
         return frontend
 
@@ -278,17 +402,26 @@ class ProxyHelper():
         return backend
 
     def clean_config(self, unit, backend_name, save=True):
-        # HAProxy units can't have / character, replace it so it doesn't fail on a common error of passing in the juju unit
+        # HAProxy units can't have / character
+        # replace it so it doesn't fail on a common error
+        # from passing in the juju unit
         unit = unit.replace('/', '-')
         backend_name = backend_name.replace('/', '-')
-        hookenv.log("Cleaning unit,backend: {},{}".format(unit, backend_name), 'DEBUG')
+        hookenv.log(
+            "Cleaning unit,backend: {},{}".format(
+                unit,
+                backend_name),
+            'DEBUG')
 
         # Remove acls and use_backend statements from frontends
         for fe in self.proxy_config.frontends:
             for ub in fe.usebackends():
-                if ub.backend_condition == unit:
-                    # Direct removal from config_block b/c the name will match
-                    # others in a group since it isn't unique
+                # Match on name or condition, name is needed for TCP
+                # frontends which use 'default_backend'
+                if ub.backend_condition == unit or \
+                   ub.backend_name == unit:
+                    # Direct removal from config_block b/c the name will
+                    # match others in a group since it isn't unique
                     fe.config_block.remove(ub)
             for acl in fe.acls():
                 if acl.name == unit:
@@ -307,7 +440,9 @@ class ProxyHelper():
                                           len(fe.usebackends()) > 0 or not fe.name.startswith('relation')]
 
         # Remove any backend with no server
-        self.proxy_config.backends[:] = [be for be in self.proxy_config.backends if len(be.servers()) > 0]
+        self.proxy_config.backends[:] = [
+            be for be in self.proxy_config.backends
+            if len(be.servers()) > 0]
 
         if save:
             self.save_config()
@@ -321,20 +456,30 @@ class ProxyHelper():
         self.update_ports()
 
     def update_ports(self):
-        opened_ports = str(subprocess.check_output(["opened-ports"]), 'utf-8').split('/tcp\n')
+        opened_ports = str(
+            subprocess.check_output(["opened-ports"]),
+            'utf-8').split('/tcp\n')
         hookenv.log("Opened ports {}".format(opened_ports), "DEBUG")
         for frontend in self.proxy_config.frontends:
             if frontend.port in opened_ports:
-                if self.charm_config['enable-stats'] and self.charm_config['stats-local'] and\
+                if self.charm_config['enable-stats'] \
+                        and self.charm_config['stats-local'] and \
                    self.charm_config['stats-port'] == int(frontend.port):
-                    hookenv.log("Stats port set to be closed {}".format(frontend.port), "DEBUG")
+                    hookenv.log("Stats port set to be closed {}".format(
+                        frontend.port),
+                        "DEBUG")
                 else:
-                    hookenv.log("Port already open {}".format(frontend.port), "DEBUG")
+                    hookenv.log("Port already open {}".format(
+                        frontend.port),
+                        "DEBUG")
                     opened_ports.remove(frontend.port)
             else:
-                if self.charm_config['enable-stats'] and self.charm_config['stats-local'] and\
+                if self.charm_config['enable-stats'] and \
+                        self.charm_config['stats-local'] and \
                    self.charm_config['stats-port'] == int(frontend.port):
-                    hookenv.log("Not opening stats port {}".format(frontend.port), "DEBUG")
+                    hookenv.log("Not opening stats port {}".format(
+                        frontend.port),
+                        "DEBUG")
                 else:
                     hookenv.log("Opening {}".format(frontend.port), "DEBUG")
                     hookenv.open_port(frontend.port)
@@ -350,17 +495,20 @@ class ProxyHelper():
 
         frontend = self.get_frontend(80)
         if not self.available_for_http(frontend):
-            hookenv.log("Port 80 not available for http use by letsencrypt", "ERROR")
-            return  # TODO: Should I error here or is just returning with a log ok?
+            hookenv.log("Port 80 not available for http use by letsencrypt",
+                        "ERROR")
+            return  # TODO: Should I error here, or is returning a log ok?
 
-        # Only configure the rest if we haven't already done so to avoid checking every change for already existing
+        # Only configure the rest if we haven't already done so to avoid
+        # checking every change for already existing
         first_run = True
         for acl in frontend.acls():
             if acl.name == unit_name:
                 first_run = False
         if first_run:
             # Add ACL to the frontend
-            acl = Config.Acl(name=unit_name, value='path_beg -i /.well-known/acme-challenge/')
+            acl = Config.Acl(name=unit_name,
+                             value='path_beg -i /.well-known/acme-challenge/')
             frontend.add_acl(acl)
             # Add usebackend
             use_backend = Config.UseBackend(backend_name=backend_name,
@@ -374,18 +522,23 @@ class ProxyHelper():
 
             # Add server to the backend
             attributes = ['']
-            server = Config.Server(name=unit_name, host='127.0.0.1', port=self.letsencrypt_config['port'], attributes=attributes)
+            server = Config.Server(name=unit_name, host='127.0.0.1',
+                                   port=self.letsencrypt_config['port'],
+                                   attributes=attributes)
             backend.add_server(server)
 
             # Render new cfg file
             self.save_config()
 
         # Call the register function from the letsencrypt layer
-        hookenv.log("Letsencrypt port: {}".format(self.letsencrypt_config['port']), 'DEBUG')
-        hookenv.log("Letsencrypt domains: {}".format(self.charm_config['letsencrypt-domains']), 'DEBUG')
+        hookenv.log("Letsencrypt port: {}".format(
+            self.letsencrypt_config['port']), 'DEBUG')
+        hookenv.log("Letsencrypt domains: {}".format(
+            self.charm_config['letsencrypt-domains']), 'DEBUG')
         if letsencrypt.register_domains() > 0:
-            hookenv.log("Failed letsencrypt registration see /var/log/letsencrypt/letsencrypt.log", "ERROR")
-            return  # TODO: Should I error here or is just returning with a log ok?
+            hookenv.log(("Failed letsencrypt registration see "
+                         "/var/log/letsencrypt/letsencrypt.log"), "ERROR")
+            return  # TODO: Should I error here or is just returning a log ok?
 
         # create the merged .pem for HAProxy
         self.merge_letsencrypt_cert()
@@ -393,12 +546,15 @@ class ProxyHelper():
         # Configure the frontend 443
         frontend = self.get_frontend(443)
         if not len(frontend.binds()[0].attributes):
-            frontend.binds()[0].attributes.append('ssl crt {}'.format(self.cert_file))
+            frontend.binds()[0].attributes.append('ssl crt {}'.format(
+                self.cert_file))
         if first_run:
             frontend.add_acl(acl)
             frontend.add_usebackend(use_backend)
             if self.charm_config['destination-https-rewrite']:
-                frontend.add_config(Config.Config('reqirep', 'Destination:\\ https(.*) Destination:\\ http\\\\1 '))
+                frontend.add_config(Config.Config(
+                    'reqirep',
+                    'Destination:\\ https(.*) Destination:\\ http\\\\1 '))
             self.save_config()
 
         # Add cron for renew
@@ -408,24 +564,32 @@ class ProxyHelper():
         # Remove non-standard frontend configs
         frontend = self.get_frontend(443)
         frontend.binds()[0].attributes[:] = []  # Remove ssl cert attribute
-        frontend.remove_config('reqirep', 'Destination:\\ https(.*) Destination:\\ http\\\\1 ')
+        frontend.remove_config(
+            'reqirep',
+            'Destination:\\ https(.*) Destination:\\ http\\\\1 ')
 
         # Remove any standard config
-        self.clean_config(unit='letsencrypt', backend_name='letsencrypt-backend', save=save)
+        self.clean_config(unit='letsencrypt',
+                          backend_name='letsencrypt-backend',
+                          save=save)
         self.remove_cert_cron()
 
     def merge_letsencrypt_cert(self):
-        letsencrypt_live_folder = '/etc/letsencrypt/live/{}/'.format(self.domain_name)
+        letsencrypt_live_folder = '/etc/letsencrypt/live/{}/'.format(
+            self.domain_name)
         with open(self.cert_file, 'wb') as outFile:
-            with open(letsencrypt_live_folder + 'fullchain.pem', 'rb') as chainFile:
+            with open(letsencrypt_live_folder + 'fullchain.pem', 'rb') \
+                    as chainFile:
                 outFile.write(chainFile.read())
-            with open(letsencrypt_live_folder + 'privkey.pem', 'rb') as privFile:
+            with open(letsencrypt_live_folder + 'privkey.pem', 'rb') \
+                    as privFile:
                 outFile.write(privFile.read())
 
     def renew_cert(self, full=True):
         hookenv.log("Renewing cert", "INFO")
         if full:
-            # Calling a full disable/enable to clean and re-write the config to catch domain changes in the charm config
+            # Calling a full disable/enable to clean and re-write the config
+            # to catch domain changes in the charm config
             hookenv.log("Performing full domain register", "INFO")
             self.disable_letsencrypt()
             self.enable_letsencrypt()
@@ -440,7 +604,9 @@ class ProxyHelper():
         # check that open ports is accurate
         self.update_ports()
         # send upnp for ports even if they were already open
-        opened_ports = str(subprocess.check_output(["opened-ports"]), 'utf-8').split('/tcp\n')
+        opened_ports = str(
+            subprocess.check_output(["opened-ports"]),
+            'utf-8').split('/tcp\n')
         opened_ports.remove('')
         for port in opened_ports:
             hookenv.log("Opening port {}".format(port), "INFO")
@@ -451,7 +617,9 @@ class ProxyHelper():
         # check that open ports is accurate
         self.update_ports()
         # send upnp for ports even if they were already open
-        opened_ports = str(subprocess.check_output(["opened-ports"]), 'utf-8').split('/tcp\n')
+        opened_ports = str(
+            subprocess.check_output(["opened-ports"]),
+            'utf-8').split('/tcp\n')
         opened_ports.remove('')
         for port in opened_ports:
             hookenv.log("Closing port {}".format(port), "INFO")
@@ -464,8 +632,11 @@ class ProxyHelper():
         unit = hookenv.local_unit()
         directory = hookenv.charm_dir()
         action_path = directory + '/actions/{}'.format(action)
-        command = "juju-run {unit} {action}".format(unit=unit, action=action_path)
-        job = root_cron.new(command=command, comment="Charm cron for {}".format(action))
+        command = "juju-run {unit} {action}".format(
+            unit=unit,
+            action=action_path)
+        job = root_cron.new(command=command,
+                            comment="Charm cron for {}".format(action))
         job.setall(interval)
         root_cron.write()
         hookenv.log("Cron added: {}".format(action), "INFO")
@@ -473,7 +644,9 @@ class ProxyHelper():
     def remove_cron(self, action):
         root_cron = CronTab(user='root')
         try:
-            job = next(root_cron.find_comment("Charm cron for {}".format(action)))
+            job = next(root_cron.find_comment(
+                "Charm cron for {}".format(
+                    action)))
             root_cron.remove(job)
             root_cron.write()
         except StopIteration:
