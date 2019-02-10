@@ -152,6 +152,8 @@ class ProxyHelper():
             # checking backend health
             if config['check']:
                 attributes = ['check fall 3 rise 2']
+            else:
+                attributes = []
 
             # Add server to the backend
             # Firstly, set the mode on the backedn to match

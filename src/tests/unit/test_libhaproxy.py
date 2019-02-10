@@ -101,6 +101,12 @@ class TestLibhaproxy():
                 rewrite_found = True
         assert rewrite_found
         assert backend.acl('local')
+        check_found = False
+        for server in backend.servers():
+            for attribute in server.attributes:
+                if 'check' in attribute:
+                    check_found = True
+        assert check_found
 
         # Add a unit with proxypass, ssl verify none, and no check
         monkeypatch.setattr('libhaproxy.hookenv.remote_unit', lambda: 'unit-mock/8')
@@ -113,6 +119,7 @@ class TestLibhaproxy():
         config['ssl'] = True
         config['ssl-verify'] = False
         config['external_port'] = 443
+        config['check'] = False
         assert ph.process_configs([config])['cfg_good'] is True
         backend = ph.get_backend('unit-mock-8-0', create=False)
         forward_for_found = False
@@ -130,6 +137,12 @@ class TestLibhaproxy():
             if 'ssl verify none' in server.attributes:
                 ssl_found = True
         assert ssl_found
+        check_found = False
+        for server in backend.servers():
+            for attribute in server.attributes:
+                if 'check' in attribute:
+                    check_found = True
+        assert not check_found
 
         # Check that the expected number of backends are in use
         # Backends 0-0,0-1,2,3,4,5,6,7 should be in use by HTTP port 80
