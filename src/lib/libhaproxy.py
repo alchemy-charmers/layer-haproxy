@@ -150,7 +150,9 @@ class ProxyHelper():
             # nicer HTTP checks for HTTP backends will also
             # be enabled to perform HTTP requests as part of
             # checking backend health
-            attributes = ['check fall 3 rise 2']
+            attributes = []
+            if config['check']:
+                attributes = ['check fall 3 rise 2']
 
             # Add server to the backend
             # Firstly, set the mode on the backedn to match

@@ -15,7 +15,8 @@ def config():
                 'group_id': None,
                 'external_port': 80,
                 'internal_host': 'test-host',
-                'internal_port': 8000
+                'internal_port': 8000,
+                'check': True,
                 }
     return defaultdict(lambda: None, defaults)
 
