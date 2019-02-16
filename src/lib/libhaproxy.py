@@ -33,7 +33,7 @@ class ProxyHelper():
 
     def add_timeout_tunnel(self, timeout='1h', save=True):
         tunnel_config = Config.Config("timeout tunnel", "{}".format(timeout))
-        defaults = self.proxy_config.defaults[0]
+        defaults = self.get_defaults()
         for cfg in defaults.configs():
             if cfg.keyword == 'timeout tunnel':
                 defaults.remove_config(cfg)
@@ -402,6 +402,15 @@ class ProxyHelper():
             backend = Config.Backend(name=name, config_block=[])
             self.proxy_config.backends.append(backend)
         return backend
+
+    def get_defaults(self, name=None, create=True):
+        default_config = self.proxy_config.defaults
+        if not default_config and create:
+            hookenv.log("Creating defaults section {}".format(name))
+            default_config = Config.Defaults(name=name, config_block=[])
+            self.proxy_config.defaults.append(default_config)
+        defaults = default_config[0]
+        return defaults
 
     def clean_config(self, unit, backend_name, save=True):
         # HAProxy units can't have / character
