@@ -173,7 +173,9 @@ class ProxyHelper():
                 # Add httpchk option if not present
                 if config['group_id']:
                     httpchk_found = False
-                    httpchk = 'httpchk GET {} HTTP/1.0'.format(
+                    # prepend / because we remove it from the relation
+                    # data provided urlbase. for reasons.
+                    httpchk = 'httpchk GET /{} HTTP/1.0'.format(
                         config['urlbase'] or '/')
                     for test_option in backend.options():
                         if httpchk in test_option.keyword:
@@ -197,8 +199,12 @@ class ProxyHelper():
                         backend.add_acl(
                             Config.Acl('local',
                                        ("src 10.0.0.0/8 "
+                                        "172.16.0.0/12 "
                                         "192.168.0.0/16 "
-                                        "127.0.0.0/8")))
+                                        "127.0.0.0/8 "
+                                        "fd00::/8 "
+                                        "fe80::/10 "
+                                        "::1/128")))
                         backend.add_config(
                             Config.Config('http-request deny if !local', ''))
                 if config['proxypass']:
@@ -304,9 +310,14 @@ class ProxyHelper():
                     self.charm_config['stats-url']), ''))
         if self.charm_config['stats-local']:
             config_block.append(
-                Config.Acl(
-                    'local',
-                    'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
+                Config.Acl('local',
+                           ("src 10.0.0.0/8 "
+                            "172.16.0.0/12 "
+                            "192.168.0.0/16 "
+                            "127.0.0.0/8 "
+                            "fd00::/8 "
+                            "fe80::/10 "
+                            "::1/128")))
             config_block.append(
                 Config.Config(
                     'http-request deny if !local', ''))

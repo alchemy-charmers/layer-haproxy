@@ -9,7 +9,7 @@ from juju.model import Model
 pytestmark = pytest.mark.asyncio
 
 series = ['xenial', 'bionic']
-juju_repository = os.getenv('JUJU_REPOSITORY', '.').rstrip('/')
+juju_repository = os.getenv('juju_repository', '.').rstrip('/')
 
 
 @pytest.fixture
