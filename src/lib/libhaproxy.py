@@ -88,7 +88,7 @@ class ProxyHelper():
             # urlbase use to accept / now they are added automatically
             # to avoid errors strip it from old configs
             if config['urlbase']:
-                config['urlbase'] = config['urlbase'].strip('/')
+                config['urlbase'] = config['urlbase'].rstrip('/')
 
             hookenv.log('Checking frontend {}'.format(
                 str(frontend)), 'DEBUG')
@@ -173,9 +173,7 @@ class ProxyHelper():
                 # Add httpchk option if not present
                 if config['group_id']:
                     httpchk_found = False
-                    # prepend / because we remove it from the relation
-                    # data provided urlbase. for reasons.
-                    httpchk = 'httpchk GET /{} HTTP/1.0'.format(
+                    httpchk = 'httpchk GET {} HTTP/1.0'.format(
                         config['urlbase'] or '/')
                     for test_option in backend.options():
                         if httpchk in test_option.keyword:
