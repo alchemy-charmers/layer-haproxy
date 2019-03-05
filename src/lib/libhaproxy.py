@@ -88,7 +88,7 @@ class ProxyHelper():
             # urlbase use to accept / now they are added automatically
             # to avoid errors strip it from old configs
             if config['urlbase']:
-                config['urlbase'] = config['urlbase'].strip('/')
+                config['urlbase'] = config['urlbase'].rstrip('/')
 
             hookenv.log('Checking frontend {}'.format(
                 str(frontend)), 'DEBUG')
@@ -197,8 +197,12 @@ class ProxyHelper():
                         backend.add_acl(
                             Config.Acl('local',
                                        ("src 10.0.0.0/8 "
+                                        "172.16.0.0/12 "
                                         "192.168.0.0/16 "
-                                        "127.0.0.0/8")))
+                                        "127.0.0.0/8 "
+                                        "fd00::/8 "
+                                        "fe80::/10 "
+                                        "::1/128")))
                         backend.add_config(
                             Config.Config('http-request deny if !local', ''))
                 if config['proxypass']:
@@ -304,9 +308,14 @@ class ProxyHelper():
                     self.charm_config['stats-url']), ''))
         if self.charm_config['stats-local']:
             config_block.append(
-                Config.Acl(
-                    'local',
-                    'src 10.0.0.0/8 192.168.0.0/16 127.0.0.0/8'))
+                Config.Acl('local',
+                           ("src 10.0.0.0/8 "
+                            "172.16.0.0/12 "
+                            "192.168.0.0/16 "
+                            "127.0.0.0/8 "
+                            "fd00::/8 "
+                            "fe80::/10 "
+                            "::1/128")))
             config_block.append(
                 Config.Config(
                     'http-request deny if !local', ''))
