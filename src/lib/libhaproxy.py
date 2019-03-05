@@ -102,10 +102,10 @@ class ProxyHelper():
                 if config['urlbase']:
                     acl = Config.Acl(
                         name=remote_unit,
-                        value='path_beg /{}/'.format(config['urlbase']))
+                        value='path_beg {}/'.format(config['urlbase']))
                     frontend.add_acl(acl)
                     acl = Config.Acl(name=remote_unit,
-                                     value='path /{}'.format(
+                                     value='path {}'.format(
                                          config['urlbase']))
                     frontend.add_acl(acl)
                 if config['subdomain']:
@@ -185,7 +185,7 @@ class ProxyHelper():
                 if config['rewrite-path'] and config['urlbase']:
                     rewrite_found = False
                     rewrite = ("http-request set-path "
-                               "%[path,regsub(^/{}/?,/)]").format(
+                               "%[path,regsub(^{}/?,/)]").format(
                                    config['urlbase'])
                     for test_cfg in backend.configs():
                         if rewrite in test_cfg.keyword:
