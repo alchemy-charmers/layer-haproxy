@@ -10,6 +10,7 @@ tags:
 subordinate: false
 series:
  - xenial
+ - bionic
 provides:
   reverseproxy:
     interface: reverseproxy

@@ -1,6 +1,7 @@
 charmhelpers
 charms.reactive
 pytest
+pytest-cov
 mock
 pyhaproxy > 0.2.4
 python-crontab
