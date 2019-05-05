@@ -2,6 +2,7 @@ import os
 import pytest
 import requests
 import subprocess
+import time
 
 # Treat tests as coroutines
 pytestmark = pytest.mark.asyncio
@@ -59,9 +60,8 @@ async def test_charm_upgrade(model, app):
     await model.block_until(lambda: unit.agent_status == 'executing')
 
 
-async def test_haproxy_status(apps, model):
-    for app in apps:
-        await model.block_until(lambda: app.status == 'active')
+async def test_haproxy_status(app, model):
+    await model.block_until(lambda: app.status == 'active')
     assert True
 
 
@@ -74,12 +74,10 @@ async def test_wrong_login(app):
 
 
 async def test_disable_stats(model, app):
-    action = await unit.run_action('disable-stats')
-    action = await action.wait()
-    assert action.status == 'completed'
-    # Disable stats prevents connection
-
-
+    unit = app.units[0]
+    await app.set_config({'enable-stats': 'False'})
+    time.sleep(2)
+    await model.block_until(lambda: app.status == 'active')
 
     with pytest.raises(requests.exceptions.ConnectionError):
         page = requests.get('http://{}:{}/{}'.format(unit.public_address, 9000, 'ha-stats'),
