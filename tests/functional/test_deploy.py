@@ -8,7 +8,7 @@ pytestmark = pytest.mark.asyncio
 
 juju_repository = os.getenv('JUJU_REPOSITORY', '.').rstrip('/')
 series = ['xenial',
-          'bionic',
+          pytest.param('bionic', marks=pytest.mark.xfail(reason='canary')),
           pytest.param('cosmic', marks=pytest.mark.xfail(reason='canary')),
           ]
 sources = [('local', '{}/builds/haproxy'.format(juju_repository)),
@@ -74,11 +74,13 @@ async def test_wrong_login(app):
 
 
 async def test_disable_stats(model, app):
-    unit = app.units[0]
     action = await unit.run_action('disable-stats')
     action = await action.wait()
     assert action.status == 'completed'
     # Disable stats prevents connection
+
+
+
     with pytest.raises(requests.exceptions.ConnectionError):
         page = requests.get('http://{}:{}/{}'.format(unit.public_address, 9000, 'ha-stats'),
                             auth=requests.auth.HTTPBasicAuth('admin', 'admin'),
