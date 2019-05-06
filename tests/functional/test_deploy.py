@@ -93,39 +93,6 @@ async def test_haproxy_status(model, app):
     await model.block_until(lambda: unit.agent_status == 'idle')
 
 
-# @pytest.fixture
-# async def units(model):
-#     units = []
-#     for entry in series:
-#         app = model.applications['haproxy-{}'.format(entry)]
-#         units.extend(app.units)
-#     return units
-#
-#
-# @pytest.fixture
-# async def apps(model):
-#     apps = []
-#     for entry in series:
-#         app = model.applications['haproxy-{}'.format(entry)]
-#         apps.append(app)
-#     return apps
-
-
-# @pytest.mark.parametrize('series', series)
-# async def test_haproxy_deploy(model, series):
-#     print('{}/builds/haproxy'.format(juju_repository))
-#     await model.deploy('{}/builds/haproxy'.format(juju_repository),
-#                        series=series,
-#                        application_name='haproxy-{}'.format(series))
-#     assert True
-
-
-# async def test_haproxy_status(apps, model):
-#     for app in apps:
-#         await model.block_until(lambda: app.status == 'active')
-#     assert True
-
-
 async def test_wrong_login(app):
     unit = app.units[0]
     page = requests.get('http://{}:{}/{}'.format(unit.public_address, 9000, 'ha-stats'),
