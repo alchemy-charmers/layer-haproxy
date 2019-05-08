@@ -609,6 +609,7 @@ class ProxyHelper():
             letsencrypt.renew()
             # create the merged .pem for HAProxy
             self.merge_letsencrypt_cert()
+            host.service_reload('haproxy.service')
 
     def renew_upnp(self):
         hookenv.log("Renewing upnp port requests", "INFO")
