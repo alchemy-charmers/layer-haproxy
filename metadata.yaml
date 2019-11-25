@@ -9,13 +9,14 @@ tags:
   - misc
 subordinate: false
 series:
- - xenial
+  - xenial
+  - bionic
 provides:
   reverseproxy:
     interface: reverseproxy
-#requires:
-#  requires-relation:
-#    interface: interface-name
-#peers:
-#  peer-relation:
-#    interface: interface-name
+# requires:
+#   requires-relation:
+#     interface: interface-name
+# peers:
+#   peer-relation:
+#     interface: interface-name
