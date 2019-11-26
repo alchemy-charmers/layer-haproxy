@@ -48,6 +48,7 @@ def configure_haproxy():
     if ph.charm_config['enable-https-redirect']:
         ph.enable_redirect()
     ph.add_timeout_tunnel()
+    ph.configure_tls_ciphers()
     hookenv.status_set('active', '')
     set_state('haproxy.configured')
 
