@@ -12,7 +12,6 @@ pytestmark = pytest.mark.asyncio
 juju_repository = os.getenv('JUJU_REPOSITORY', '.').rstrip('/')
 series = ['xenial',
           pytest.param('bionic', marks=pytest.mark.xfail(reason='canary')),
-          pytest.param('cosmic', marks=pytest.mark.xfail(reason='canary')),
           ]
 sources = [('local', '{}/builds/haproxy'.format(juju_repository)),
            ('jujucharms', 'cs:~pirate-charmers/haproxy'),

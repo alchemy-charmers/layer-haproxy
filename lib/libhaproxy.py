@@ -6,6 +6,7 @@ from pyhaproxy.render import Render
 from crontab import CronTab
 
 import pyhaproxy.config as Config
+from distutils.version import StrictVersion
 import reactive.letsencrypt as letsencrypt
 import subprocess
 import re
@@ -499,6 +500,12 @@ class ProxyHelper():
                 hookenv.log("Closing port {}".format(port), "DEBUG")
                 hookenv.close_port(port)
 
+    def supports_http2(self):
+        """Check if HTTP/2 is enabled and supported."""
+        if StrictVersion(self.charm_config.get("version")) >= StrictVersion("1.9"):
+            return True
+        return False
+
     def enable_letsencrypt(self):
         hookenv.log("Enabling letsencrypt", "DEBUG")
         unit_name = 'letsencrypt'
@@ -559,6 +566,8 @@ class ProxyHelper():
         if not len(frontend.binds()[0].attributes):
             frontend.binds()[0].attributes.append('ssl crt {}'.format(
                 self.cert_file))
+        if self.supports_http2():
+            frontend.binds()[0].attributes.append('alpn h2,http/1.1')
         if first_run:
             frontend.add_acl(acl)
             frontend.add_usebackend(use_backend)
