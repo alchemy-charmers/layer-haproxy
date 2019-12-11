@@ -7,6 +7,8 @@ from pyhaproxy.render import Render
 from crontab import CronTab
 
 import pyhaproxy.config as haproxy_config
+from distutils.version import StrictVersion
+
 import reactive.letsencrypt as letsencrypt
 import subprocess
 import re
@@ -317,9 +319,13 @@ class ProxyHelper:
             haproxy_config.Bind("0.0.0.0", self.charm_config["stats-port"], None)
         )
         config_block.append(haproxy_config.Config("stats enable", ""))
-        config_block.append(haproxy_config.Config("stats auth {}".format(user_string), ""))
         config_block.append(
-            haproxy_config.Config("stats uri {}".format(self.charm_config["stats-url"]), "")
+            haproxy_config.Config("stats auth {}".format(user_string), "")
+        )
+        config_block.append(
+            haproxy_config.Config(
+                "stats uri {}".format(self.charm_config["stats-url"]), ""
+            )
         )
         if self.charm_config["stats-local"]:
             config_block.append(
@@ -336,7 +342,9 @@ class ProxyHelper:
                     ),
                 )
             )
-            config_block.append(haproxy_config.Config("http-request deny if !local", ""))
+            config_block.append(
+                haproxy_config.Config("http-request deny if !local", "")
+            )
         frontend = haproxy_config.Frontend(
             "stats", "0.0.0.0", str(self.charm_config["stats-port"]), config_block
         )
@@ -520,6 +528,12 @@ class ProxyHelper:
                 hookenv.log("Closing port {}".format(port), "DEBUG")
                 hookenv.close_port(port)
 
+    def supports_http2(self):
+        """Check if HTTP/2 is enabled and supported."""
+        if StrictVersion(self.charm_config.get("version")) >= StrictVersion("1.9"):
+            return True
+        return False
+
     def enable_letsencrypt(self):
         """Enable certbot for TLS certificate generation."""
         hookenv.log("Enabling letsencrypt", "DEBUG")
@@ -593,6 +607,8 @@ class ProxyHelper:
         frontend = self.get_frontend(443)
         if not len(frontend.binds()[0].attributes):
             frontend.binds()[0].attributes.append("ssl crt {}".format(self.cert_file))
+        if self.supports_http2():
+            frontend.binds()[0].attributes.append("alpn h2,http/1.1")
         if first_run:
             frontend.add_acl(acl)
             frontend.add_usebackend(use_backend)

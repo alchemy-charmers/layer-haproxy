@@ -1,11 +1,15 @@
 options:
   version:
     type: string
-    default: "1.7"
+    default: "1.9"
     description: "Version of HAProxy to install"
+  enable-http2:
+    type: boolean
+    default: true
+    description: "Enable HTTP2 is HTTPS is enabled and at least version 1.9 is installed."
   enable-stats:
     type: boolean
-    default: True
+    default: true
     description: "Enable HAProxy stats page"
   stats-user:
     type: string
@@ -25,7 +29,7 @@ options:
     description: "Port for accessing stats page"
   stats-local:
     type: boolean
-    default: True
+    default: true
     description: "Restrict stats to local IP ranges"
   cert-renew-interval:
     type: string
@@ -37,9 +41,9 @@ options:
     description: "Cron interval to rewnew upnp, if in use"
   destination-https-rewrite:
     type: boolean
-    default: True
+    default: true
     description: "Rewrite 'Destination' header so WebDav servers wont fail on mismatched file paths (http vs https)"
   enable-https-redirect:
     type: boolean
-    default: True
+    default: true
     description: "Redirect http requets with no explicit backend to https"
