@@ -3,4 +3,5 @@ juju
 mock
 pytest
 pytest-asyncio
+pytest-html
 requests
