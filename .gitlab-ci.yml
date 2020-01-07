@@ -1,0 +1,50 @@
+---
+
+stages:
+  - test
+
+flake8:
+  stage: test
+  image: 'python:3.6'
+  tags:
+    - docker
+  before_script:
+    - python --version
+    - pip install tox
+    - mkdir -p report/lint
+  script:
+    - make lint 
+  artifacts:
+    paths:
+      - report/lint
+
+unittest:
+  stage: test 
+  image: 'python:3.6'
+  tags:
+    - docker
+  before_script:
+    - python --version
+    - pip install tox
+    - mkdir -p report/unit
+  script:
+    - make unittest
+  coverage: '/^TOTAL.+?(\d+\%)$/'
+  artifacts:
+    paths:
+      - report/unit
+
+functional:
+    stage: test
+    tags:
+        - lxd
+    before_script:
+        - git submodule sync --recursive
+        - git submodule update --init --recursive
+        - apt-get install -y tox make
+        - snap install juju --classic || true
+        - snap install juju --classic
+        - snap install charm --classic
+        - juju bootstrap localhost
+    script:
+        - JUJU_REPOSITORY=/tmp/juju make functional
