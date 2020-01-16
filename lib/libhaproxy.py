@@ -35,7 +35,6 @@ class ProxyHelper:
     @property
     def proxy_config(self):
         """Parse and return proxy configuration."""
-
         if not self._proxy_config:
             self._proxy_config = Parser(self.proxy_config_file).build_configuration()
 
@@ -67,7 +66,6 @@ class ProxyHelper:
 
     def process_configs(self, configs):
         """Process related unit configuration."""
-
         for names, config in zip(self.get_config_names(configs), configs):
             remote_unit = names[0]
             backend_name = names[1]
@@ -289,7 +287,6 @@ class ProxyHelper:
 
     def available_for_http(self, frontend):
         """Check if backend should be configured for HTTP."""
-
         if frontend.name == "stats":
             return False
 
@@ -315,7 +312,6 @@ class ProxyHelper:
 
     def available_for_tcp(self, frontend, backend_name):
         """Verify if related backend should be configured for TCP operation."""
-
         if len(frontend.acls()):
             return False
 
@@ -599,7 +595,6 @@ class ProxyHelper:
 
     def supports_http2(self):
         """Check if HTTP/2 is enabled and supported."""
-
         if StrictVersion(self.charm_config.get("version")) >= StrictVersion("1.9"):
             return True
 
@@ -817,7 +812,6 @@ class ProxyHelper:
 
     def check_version(self):
         """Chcek version for upgrade support."""
-
         if host.get_distrib_codename() == "xenial":
             supported_versions = ("1.7",)
 

@@ -100,7 +100,6 @@ def remove_relation(reverseproxy, *args):
 @when("config.changed.version")
 def version_changed():
     """Reconfigure when the desired version is changed."""
-
     if hookenv.hook_name() == "install":
         return
     valid, msg, _ = ph.check_version()
@@ -149,7 +148,6 @@ def post_series_upgrade():
 )
 def stats_changed():
     """Reconfigure the stats endpoint when configuration changes."""
-
     if hookenv.hook_name() == "install":
         return
 
@@ -164,7 +162,6 @@ def stats_changed():
 @when_any("config.changed.enable-upnp")
 def upnp_changed():
     """Reconfigure UPNP behaviour when configuration changes."""
-
     if hookenv.hook_name() == "install":
         return
 
@@ -184,7 +181,6 @@ def upnp_changed():
 @when("config.changed.upnp-renew-interval")
 def upnp_interval_changed():
     """Reconfigure the UPNP referesh interval when configuration changes."""
-
     if hookenv.hook_name() == "install":
         return
     ph.remove_upnp_cron()
@@ -200,7 +196,6 @@ def upnp_interval_changed():
 )
 def letsencrypt_config_changed():
     """Configure certbot when configuration changes."""
-
     if hookenv.hook_name() == "install":
         return
     ph.disable_letsencrypt()
@@ -212,7 +207,6 @@ def letsencrypt_config_changed():
 @when("config.changed.cert-renew-interval")
 def cert_interval_changed():
     """Reconfigure the certificate renewal interval when configuration changes."""
-
     if hookenv.hook_name() == "install":
         return
     ph.remove_cert_cron()
@@ -224,7 +218,6 @@ def cert_interval_changed():
 @when("config.changed.enable-https-redirect")
 def redirect_changed():
     """Reconfigure the HTTPS redirect behaviour when configuration changes."""
-
     if hookenv.hook_name() == "install":
         return
 
@@ -237,7 +230,6 @@ def redirect_changed():
 @hook("stop")
 def stop_haproxy():
     """Stop haproxy and disable certbot when a deployed unit is being stopped."""
-
     if ph.charm_config["enable-stats"]:
         hookenv.log("Disabling status to free any opened ports", "INFO")
         ph.disable_stats()
