@@ -74,10 +74,8 @@ apt dist-upgrade -y
 do-release-upgrade -f DistUpgradeViewNonInteractive
 reboot now
 ```
-During the upgrade any questions about configuration files should accept the default (keep
-local copy). Specifically, the HAProxy configuration file needs to be kept. If it is not,
-relations will have to be removed and re-added to repopulate the config file after the
-upgrade.
+The upgrade will automatically answer all questions, there is no need to interact with the
+release upgrade. When it is complete a reboot should be done manually.
 
 Complete from the juju client
 ```bash

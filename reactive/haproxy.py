@@ -136,11 +136,7 @@ def post_series_upgrade():
         )
         ph.charm_config["version"] = version
     install_haproxy()
-
-    # if not valid:
-    #     hookenv.status_set(
-    #         "active", "Version config out of date, set to {} or higher".format(version)
-    #     )
+    hookenv.status_set("active", "")
 
 
 @when_any(
