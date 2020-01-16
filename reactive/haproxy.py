@@ -1,12 +1,11 @@
 """Reactive layer for haproxy charm."""
-from charms.reactive import hook, when, when_all, when_any, when_not, set_state
-from charmhelpers.core import hookenv, host
-from charmhelpers import fetch
-
+import errno
 import fileinput
 import os
-import errno
 
+from charmhelpers import fetch
+from charmhelpers.core import hookenv, host
+from charms.reactive import hook, set_state, when, when_all, when_any, when_not
 from libhaproxy import ProxyHelper
 
 ph = ProxyHelper()
@@ -33,6 +32,7 @@ def configure_haproxy():
         if exception.errno != errno.EEXIST:
             raise
     # Enable udp for rsyslog
+
     for line in fileinput.input("/etc/rsyslog.conf", inplace=True):
         line = line.replace('#module(load="imudp")', 'module(load="imudp")')
         line = line.replace(
@@ -41,12 +41,16 @@ def configure_haproxy():
         print(line, end="")
         # end statement above avoids inserting new lines at EOL
     host.service_restart("rsyslog.service")
+
     if ph.charm_config["enable-stats"]:
         ph.enable_stats()
+
     if ph.charm_config["enable-letsencrypt"]:
         ph.enable_letsencrypt()
+
     if ph.charm_config["enable-upnp"]:
         ph.add_upnp_cron()
+
     if ph.charm_config["enable-https-redirect"]:
         ph.enable_redirect()
     ph.add_timeout_tunnel()
@@ -61,6 +65,7 @@ def configure_relation(reverseproxy, *args):
     hookenv.log("Received config: {}".format(reverseproxy.config), "Info")
     # Process either dict or list of dicts to support legacy relations
     configs = []
+
     if isinstance(reverseproxy.config, dict):
         configs.append(reverseproxy.config)
     else:
@@ -77,6 +82,7 @@ def remove_relation(reverseproxy, *args):
     # Process either dict or list of dicts to support legacy relations
     # TODO: This doesn't seem to clean up frontends and close ports
     configs = []
+
     if isinstance(reverseproxy.config, dict):
         configs.append(reverseproxy.config)
     else:
@@ -94,14 +100,47 @@ def remove_relation(reverseproxy, *args):
 @when("config.changed.version")
 def version_changed():
     """Reconfigure when the desired version is changed."""
+
     if hookenv.hook_name() == "install":
         return
-    hookenv.log("Version change will not affect running units", "WARNING")
-    hookenv.status_set(
-        "active",
-        "version change to {} not applied, redeploy"
-        "unit for version change".format(ph.charm_config["version"]),
-    )
+    valid, msg, _ = ph.check_version()
+
+    if valid:
+        if (
+            ph.charm_config["version"] == "1.9"
+            and ph.charm_config["enable-letsencrypt"]
+        ):
+            # Starting with 1.9 HTTP2 will be setup during install, disable letsencrypt if we
+            # have just upgraded so intsall will reenable with HTTP2 support
+            ph.disable_letsencrypt()
+        install_haproxy()
+        hookenv.status_set("active", "")
+    else:
+        hookenv.log(msg, "WARNING")
+        hookenv.status_set(
+            "active", msg,
+        )
+
+
+@hook("post-series-upgrade")
+def post_series_upgrade():
+    """Run post upgrade steps."""
+    valid, msg, version = ph.check_version()
+
+    if not valid:
+        hookenv.log(
+            "Version not supported after upgrade, installing minimum supported version {}.".format(
+                version
+            ),
+            "WARNING",
+        )
+        ph.charm_config["version"] = version
+    install_haproxy()
+
+    if not valid:
+        hookenv.status_set(
+            "active", "Version config out of date, set to {} or higher".format(version)
+        )
 
 
 @when_any(
@@ -114,8 +153,10 @@ def version_changed():
 )
 def stats_changed():
     """Reconfigure the stats endpoint when configuration changes."""
+
     if hookenv.hook_name() == "install":
         return
+
     if ph.charm_config["enable-stats"]:
         hookenv.log("Enabling stats for config change")
         ph.enable_stats()
@@ -127,8 +168,10 @@ def stats_changed():
 @when_any("config.changed.enable-upnp")
 def upnp_changed():
     """Reconfigure UPNP behaviour when configuration changes."""
+
     if hookenv.hook_name() == "install":
         return
+
     if ph.charm_config["enable-upnp"]:
         ph.add_upnp_cron()
         ph.renew_upnp()
@@ -145,9 +188,11 @@ def upnp_changed():
 @when("config.changed.upnp-renew-interval")
 def upnp_interval_changed():
     """Reconfigure the UPNP referesh interval when configuration changes."""
+
     if hookenv.hook_name() == "install":
         return
     ph.remove_upnp_cron()
+
     if ph.charm_config["enable-upnp"]:
         ph.add_upnp_cron()
 
@@ -159,9 +204,11 @@ def upnp_interval_changed():
 )
 def letsencrypt_config_changed():
     """Configure certbot when configuration changes."""
+
     if hookenv.hook_name() == "install":
         return
     ph.disable_letsencrypt()
+
     if ph.charm_config["enable-letsencrypt"]:
         ph.enable_letsencrypt()
 
@@ -169,9 +216,11 @@ def letsencrypt_config_changed():
 @when("config.changed.cert-renew-interval")
 def cert_interval_changed():
     """Reconfigure the certificate renewal interval when configuration changes."""
+
     if hookenv.hook_name() == "install":
         return
     ph.remove_cert_cron()
+
     if ph.charm_config["enable-letsencrypt"]:
         ph.add_cert_cron()
 
@@ -179,8 +228,10 @@ def cert_interval_changed():
 @when("config.changed.enable-https-redirect")
 def redirect_changed():
     """Reconfigure the HTTPS redirect behaviour when configuration changes."""
+
     if hookenv.hook_name() == "install":
         return
+
     if ph.charm_config["enable-https-redirect"]:
         ph.enable_redirect()
     else:
@@ -190,6 +241,7 @@ def redirect_changed():
 @hook("stop")
 def stop_haproxy():
     """Stop haproxy and disable certbot when a deployed unit is being stopped."""
+
     if ph.charm_config["enable-stats"]:
         hookenv.log("Disabling status to free any opened ports", "INFO")
         ph.disable_stats()
