@@ -2,7 +2,7 @@ options:
   version:
     type: string
     default: "1.9"
-    description: "Version of HAProxy to install"
+    description: "Version of HAProxy to install, or upgrade to"
   enable-http2:
     type: boolean
     default: true

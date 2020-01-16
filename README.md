@@ -13,7 +13,7 @@ only know it's used when the admins report it :-)
 
 To deploy:
 
-    juju deploy cs:~chris.sanders/haproxy
+    juju deploy cs:~alchemy-charmers/haproxy
 
 You will most likely want to use a bundle to set options during deployment. The
 primary use case for this charm is to allow other charms that implement the
@@ -32,17 +32,12 @@ consideration. Merge requests are appreciated, some examples of current limitati
 
  * No HA Failover or Scaleout usage currently implemented
  * Can not restrict the ports other charms request
- * Functional testing is minimal
 
 # Configuration
 
 See the full list of configuration options below. This will detail some of the
 options that are worth highlighting.
 
- - Version: This is tested at the default '1.7', it is intended to provide a way
-   to specify a different repository version. In theory if new versions are
-   backwards compatible changing this is all that will be needed for new
-   releases.
  - To access HAProxy stats please see "stats-user", "stats-passwd", "stats-url",
    "stats-port", and "stats-local" configuration settings. Note that the stats
    port must be unique, if you want to use the default port of 9000 for other
@@ -54,6 +49,46 @@ options that are worth highlighting.
    out the number of units. Setting hostname to "$UNIT" will set the hostname to
    the juju unit id.
 
+# Upgrades
+
+Some limited upgrade support is available. The charm will only upgrade for specific versions.
+Currently this includes:
+ * Xenial: 1.7
+ * Bionic: 1.8, 1.9
+
+Upgrading to a new Ubuntu release is currently tested from Xenial to Bionic. The upgrade
+procedures are the standard juju series upgrade procedures. Substitute your machine id in the
+example below.
+
+From the juju client
+```bash
+juju upgrade-series $MACHINE prepare bionic
+juju ssh $MACHINE
+```
+From the machine
+```bash
+sudo su -
+apt update 
+apt upgrade -y 
+apt dist-upgrade -y
+do-release-upgrade -f DistUpgradeViewNonInteractive
+reboot now
+```
+During the upgrade any questions about configuration files should accept the default (keep
+local copy). Specifically, the HAProxy configuration file needs to be kept. If it is not,
+relations will have to be removed and re-added to repopulate the config file after the
+upgrade.
+
+Complete from the juju client
+```bash
+juju upgrade-series $MACHINE complete
+```
+
+Xenial to Bionic: After setting the upgrade to 'complete' HAProxy will be upgraded to the LTS
+1.8 release. The charm can not change the juju config value. To make this match the installed
+version set run `juju config haproxy version="1.8"`. Optionally, you can set this to 1.9
+instead and an upgrade to 1.9 will be performed.
+
 # Contact Information
 
 ## Upstream Project Information
@@ -64,4 +99,3 @@ options that are worth highlighting.
 
 [haproxy]: http://www.haproxy.org/
 [interface-reverseproxy]: https://github.com/chris-sanders/interface-reverseproxy
-
