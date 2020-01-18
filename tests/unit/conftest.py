@@ -2,8 +2,12 @@
 """Fixtures for unit testing the charm."""
 import pytest
 import mock
+import sys
 
 from collections import defaultdict
+sys.modules['charms.layer'] = mock.Mock()
+sys.modules['reactive'] = mock.Mock()
+sys.modules['reactive.letsencrypt'] = mock.Mock()
 
 
 @pytest.fixture
