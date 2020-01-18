@@ -1,17 +1,15 @@
 """Helper module for haproxy."""
-from charmhelpers.core import hookenv, host
-
-from charms import layer
-from pyhaproxy.parse import Parser
-from pyhaproxy.render import Render
-from crontab import CronTab
-
-import pyhaproxy.config as haproxy_config
+import re
+import subprocess
 from distutils.version import StrictVersion
 
+import pyhaproxy.config as haproxy_config
 import reactive.letsencrypt as letsencrypt
-import subprocess
-import re
+from charmhelpers.core import hookenv, host
+from charms import layer
+from crontab import CronTab
+from pyhaproxy.parse import Parser
+from pyhaproxy.render import Render
 
 
 class ProxyHelper:
@@ -21,7 +19,7 @@ class ProxyHelper:
         """Instantiate variables."""
         self.charm_config = hookenv.config()
         self.letsencrypt_config = layer.options("letsencrypt")
-        self.ppa = "ppa:vbernat/haproxy-{}".format(self.charm_config["version"])
+        # self.ppa = "ppa:vbernat/haproxy-{}".format(self.charm_config["version"])
         self.proxy_config_file = "/etc/haproxy/haproxy.cfg"
         self._proxy_config = None
         self.domain_name = self.charm_config["letsencrypt-domains"].split(",")[0]
@@ -29,30 +27,41 @@ class ProxyHelper:
         self.cert_file = self.ssl_path + self.domain_name + ".pem"
 
     @property
+    def ppa(self):
+        """Return current PPA."""
+        ppa = "ppa:vbernat/haproxy-{}".format(self.charm_config["version"])
+        return ppa
+
+    @property
     def proxy_config(self):
         """Parse and return proxy configuration."""
         if not self._proxy_config:
             self._proxy_config = Parser(self.proxy_config_file).build_configuration()
+
         return self._proxy_config
 
     def add_timeout_tunnel(self, timeout="1h", save=True):
         """Add tunnel_timeout setting to haproxy_config."""
         tunnel_config = haproxy_config.Config("timeout tunnel", "{}".format(timeout))
         defaults = self.proxy_config.defaults[0]
+
         for cfg in defaults.configs():
             if cfg.keyword == "timeout tunnel":
                 defaults.remove_config(cfg)
         defaults.add_config(tunnel_config)
+
         if save:
             self.save_config()
 
     def get_config_names(self, configs):
         """Get configuration names from relation data."""
         names = []
+
         for index, config in enumerate(configs):
             remote_unit = hookenv.remote_unit().replace("/", "-") + "-{}".format(index)
             backend_name = config["group_id"] or remote_unit
             names.append((remote_unit, backend_name))
+
         return names
 
     def process_configs(self, configs):
@@ -66,6 +75,7 @@ class ProxyHelper:
             # style frontend names to the new multi-relation
             # <app>-<id>-<index> format - regex ^.*?(\d+)-(\d+)$
             legacy = self.legacy_name(backend_name)
+
             if legacy != backend_name:
                 hookenv.log(
                     "Cleaning any legacy configs for {} ({})".format(
@@ -90,6 +100,7 @@ class ProxyHelper:
 
             # urlbase use to accept / now they are added automatically
             # to avoid errors strip it from old configs
+
             if config["urlbase"]:
                 config["urlbase"] = config["urlbase"].rstrip("/")
 
@@ -103,6 +114,7 @@ class ProxyHelper:
                     }
 
                 # Add ACL's to the frontend
+
                 if config["urlbase"]:
                     acl = haproxy_config.Acl(
                         name=remote_unit, value="path_beg {}/".format(config["urlbase"])
@@ -112,6 +124,7 @@ class ProxyHelper:
                         name=remote_unit, value="path {}".format(config["urlbase"])
                     )
                     frontend.add_acl(acl)
+
                 if config["subdomain"]:
                     acl = haproxy_config.Acl(
                         name=remote_unit,
@@ -140,6 +153,7 @@ class ProxyHelper:
 
                 # clean use backends for tcp backends, in case there is
                 # any cruft left over from legacy configs
+
                 for usebackend in frontend.usebackends():
                     frontend.remove_usebackend(usebackend.backend_name)
 
@@ -161,6 +175,7 @@ class ProxyHelper:
             # be enabled to perform HTTP requests as part of
             # checking backend health
             attributes = []
+
             if config["check"]:
                 attributes = ["check fall 3 rise 2"]
 
@@ -170,37 +185,47 @@ class ProxyHelper:
             backend.add_config(haproxy_config.Config("mode", config["mode"]))
 
             # Now, for HTTP specific configuration
+
             if config["mode"] == "http":
                 # Add cookie config if not already present
                 cookie_found = False
                 cookie = "cookie SERVERID insert indirect nocache"
+
                 for test_config in backend.configs():
                     if cookie in test_config.keyword:
                         cookie_found = True
+
                 if not cookie_found:
                     backend.add_config(haproxy_config.Config(cookie, ""))
                 attributes.append("cookie {}".format(remote_unit))
                 # Add httpchk option if not present
+
                 if config["group_id"]:
                     httpchk_found = False
                     httpchk = "httpchk GET {} HTTP/1.0".format(config["urlbase"] or "/")
+
                     for test_option in backend.options():
                         if httpchk in test_option.keyword:
                             httpchk_found = True
+
                     if not httpchk_found:
                         backend.add_option(haproxy_config.Option(httpchk, ""))
                     attributes.append("check")
                 # Add rewrite-path if requested and not present
+
                 if config["rewrite-path"] and config["urlbase"]:
                     rewrite_found = False
                     rewrite = (
                         "http-request set-path " "%[path,regsub(^{}/?,/)]"
                     ).format(config["urlbase"])
+
                     for test_cfg in backend.configs():
                         if rewrite in test_cfg.keyword:
                             rewrite_found = True
+
                     if not rewrite_found:
                         backend.add_config(haproxy_config.Config(rewrite, ""))
+
                 if config["acl-local"]:
                     if not backend.acl("local"):
                         backend.add_acl(
@@ -220,13 +245,17 @@ class ProxyHelper:
                         backend.add_config(
                             haproxy_config.Config("http-request deny if !local", "")
                         )
+
                 if config["proxypass"]:
                     proxy_found = False
+
                     for test_option in backend.options():
                         if "forwardfor" in test_cfg.keyword:
                             proxy_found = True
+
                     if not proxy_found:
                         backend.add_option(haproxy_config.Option("forwardfor", ""))
+
                     if config["external_port"] == 443:
                         forward_for = (
                             "http-request set-header " "X-Forwarded-Proto https"
@@ -236,6 +265,7 @@ class ProxyHelper:
                             "http-request set-header " "X-Forwarded-Proto http"
                         )
                     backend.add_config(haproxy_config.Config(forward_for, ""))
+
                 if config["ssl"]:
                     if config["ssl-verify"]:
                         ssl_attrib = "ssl"
@@ -252,25 +282,30 @@ class ProxyHelper:
 
         # Render new cfg file
         self.save_config()
+
         return {"cfg_good": True, "msg": "configuration applied"}
 
     def available_for_http(self, frontend):
         """Check if backend should be configured for HTTP."""
         if frontend.name == "stats":
             return False
+
         for config in frontend.configs():
             if "mode" in config.keyword and "tcp" in config.value:
                 return False
+
         return True
 
     def legacy_name(self, name):
         """Translate between old and new naming on relation data."""
         regex = re.compile(r"^.*?(\d+)-(\d+)$")
         matches = regex.search(name)
+
         if matches:
             # we are dealing with a new-style indexed relation
             # we should remove any old-style config
             index_suffix = "-{}".format(matches.group(2))
+
             return name.rstrip(index_suffix)
         else:
             return name
@@ -279,17 +314,22 @@ class ProxyHelper:
         """Verify if related backend should be configured for TCP operation."""
         if len(frontend.acls()):
             return False
+
         if len(frontend.usebackends()):
             valid_backend = False
+
             for ub in frontend.usebackends():
                 if ub.backend_name == backend_name:
                     valid_backend = True
                 # also check for legacy backend name in
                 # case we've upgrades
+
                 if ub.backend_name == self.legacy_name(backend_name):
                     valid_backend = True
+
             if not valid_backend:
                 return False
+
         return True
 
     def enable_stats(self, save=True):
@@ -298,6 +338,7 @@ class ProxyHelper:
         self.disable_stats(save=False)
 
         # Check that no frontend exists with conflicting port
+
         if (
             self.get_frontend(port=self.charm_config["stats-port"], create=False)
             is not None
@@ -306,8 +347,10 @@ class ProxyHelper:
                 "Stats port {} already in use".format(self.charm_config["stats-port"]),
                 "ERROR",
             )
+
             if save:
                 self.save_config()
+
             return False
 
         # Generate new front end for stats
@@ -327,6 +370,7 @@ class ProxyHelper:
                 "stats uri {}".format(self.charm_config["stats-url"]), ""
             )
         )
+
         if self.charm_config["stats-local"]:
             config_block.append(
                 haproxy_config.Acl(
@@ -349,8 +393,10 @@ class ProxyHelper:
             "stats", "0.0.0.0", str(self.charm_config["stats-port"]), config_block
         )
         self.proxy_config.frontends.append(frontend)
+
         if save:
             self.save_config()
+
         return True
 
     def disable_stats(self, save=True):
@@ -359,6 +405,7 @@ class ProxyHelper:
         self.proxy_config.frontends[:] = [
             fe for fe in self.proxy_config.frontends if fe.name != "stats"
         ]
+
         if save:
             self.save_config()
 
@@ -393,6 +440,7 @@ class ProxyHelper:
         backend.add_server(server)
 
         # Render new cfg file
+
         if save:
             self.save_config()
 
@@ -401,6 +449,7 @@ class ProxyHelper:
         backend_name = "redirect"
 
         # Remove the redirect backend
+
         for fe in self.proxy_config.frontends:
             fe.remove_usebackend(backend_name)
 
@@ -411,13 +460,17 @@ class ProxyHelper:
         """Find the frontend for the requested port."""
         port = str(port)
         frontend = None
+
         for fe in self.proxy_config.frontends:
             hookenv.log("Checking frontend for port {}".format(port), "DEBUG")
             hookenv.log("Port is: {}".format(fe.port), "DEBUG")
+
             if fe.port == port:
                 hookenv.log("Using previous frontend", "DEBUG")
                 frontend = fe
+
                 break
+
         if frontend is None and create:
             hookenv.log("Creating frontend for port {}".format(port), "INFO")
             config_block = [haproxy_config.Bind("0.0.0.0", port, None)]
@@ -425,18 +478,22 @@ class ProxyHelper:
                 "relation-{}".format(port), "0.0.0.0", port, config_block
             )
             self.proxy_config.frontends.append(frontend)
+
         return frontend
 
     def get_backend(self, name=None, create=True):
         """Find the confiured backend based on the provided name, creating as needed."""
         backend = None
+
         for be in self.proxy_config.backends:
             if be.name == name:
                 backend = be
+
         if not backend and create:
             hookenv.log("Creating backend {}".format(name))
             backend = haproxy_config.Backend(name=name, config_block=[])
             self.proxy_config.backends.append(backend)
+
         return backend
 
     def clean_config(self, unit, backend_name, save=True):
@@ -449,19 +506,23 @@ class ProxyHelper:
         hookenv.log("Cleaning unit,backend: {},{}".format(unit, backend_name), "DEBUG")
 
         # Remove acls and use_backend statements from frontends
+
         for fe in self.proxy_config.frontends:
             for ub in fe.usebackends():
                 # Match on name or condition, name is needed for TCP
                 # frontends which use 'default_backend'
+
                 if ub.backend_condition == unit or ub.backend_name == unit:
                     # Direct removal from config_block b/c the name will
                     # match others in a group since it isn't unique
                     fe.config_block.remove(ub)
+
             for acl in fe.acls():
                 if acl.name == unit:
                     fe.remove_acl(acl.name)
 
         # Remove server statements from backends
+
         for be in self.proxy_config.backends:
             for server in be.servers():
                 if server.name == unit:
@@ -471,7 +532,9 @@ class ProxyHelper:
         # Remove any relation frontend if it doesn't have use_backend
         self.proxy_config.frontends[:] = [
             fe
+
             for fe in self.proxy_config.frontends
+
             if len(fe.usebackends()) > 0 or not fe.name.startswith("relation")
         ]
 
@@ -498,6 +561,7 @@ class ProxyHelper:
             "/tcp\n"
         )
         hookenv.log("Opened ports {}".format(opened_ports), "DEBUG")
+
         for frontend in self.proxy_config.frontends:
             if frontend.port in opened_ports:
                 if (
@@ -523,6 +587,7 @@ class ProxyHelper:
                 else:
                     hookenv.log("Opening {}".format(frontend.port), "DEBUG")
                     hookenv.open_port(frontend.port)
+
         for port in opened_ports:
             if port:
                 hookenv.log("Closing port {}".format(port), "DEBUG")
@@ -532,6 +597,7 @@ class ProxyHelper:
         """Check if HTTP/2 is enabled and supported."""
         if StrictVersion(self.charm_config.get("version")) >= StrictVersion("1.9"):
             return True
+
         return False
 
     def enable_letsencrypt(self):
@@ -541,16 +607,20 @@ class ProxyHelper:
         backend_name = "letsencrypt-backend"
 
         frontend = self.get_frontend(80)
+
         if not self.available_for_http(frontend):
             hookenv.log("Port 80 not available for http use by letsencrypt", "ERROR")
+
             return  # TODO: Should I error here, or is returning a log ok?
 
         # Only configure the rest if we haven't already done so to avoid
         # checking every change for already existing
         first_run = True
+
         for acl in frontend.acls():
             if acl.name == unit_name:
                 first_run = False
+
         if first_run:
             # Add ACL to the frontend
             acl = haproxy_config.Acl(
@@ -590,6 +660,7 @@ class ProxyHelper:
             "Letsencrypt domains: {}".format(self.charm_config["letsencrypt-domains"]),
             "DEBUG",
         )
+
         if letsencrypt.register_domains() > 0:
             hookenv.log(
                 (
@@ -598,6 +669,7 @@ class ProxyHelper:
                 ),
                 "ERROR",
             )
+
             return  # TODO: Should I error here or is just returning a log ok?
 
         # create the merged .pem for HAProxy
@@ -605,13 +677,17 @@ class ProxyHelper:
 
         # Configure the frontend 443
         frontend = self.get_frontend(443)
+
         if not len(frontend.binds()[0].attributes):
             frontend.binds()[0].attributes.append("ssl crt {}".format(self.cert_file))
+
         if self.supports_http2():
             frontend.binds()[0].attributes.append("alpn h2,http/1.1")
+
         if first_run:
             frontend.add_acl(acl)
             frontend.add_usebackend(use_backend)
+
             if self.charm_config["destination-https-rewrite"]:
                 frontend.add_config(
                     haproxy_config.Config(
@@ -650,6 +726,7 @@ class ProxyHelper:
     def renew_cert(self, full=True):
         """Renew certificates."""
         hookenv.log("Renewing cert", "INFO")
+
         if full:
             # Calling a full disable/enable to clean and re-write the config
             # to catch domain changes in the charm config
@@ -673,6 +750,7 @@ class ProxyHelper:
             "/tcp\n"
         )
         opened_ports.remove("")
+
         for port in opened_ports:
             hookenv.log("Opening port {}".format(port), "INFO")
             hookenv.open_port(port)
@@ -687,6 +765,7 @@ class ProxyHelper:
             "/tcp\n"
         )
         opened_ports.remove("")
+
         for port in opened_ports:
             hookenv.log("Closing port {}".format(port), "INFO")
             hookenv.close_port(port)
@@ -730,3 +809,30 @@ class ProxyHelper:
     def remove_upnp_cron(self):
         """Remove the cron job for refreshing upnp port forwards."""
         self.remove_cron("renew-upnp")
+
+    def check_version(self):
+        """Chcek version for upgrade support."""
+        if host.get_distrib_codename() == "xenial":
+            supported_versions = ("1.7",)
+
+            if self.charm_config["version"] not in supported_versions:
+                msg = "Version {} must be in {} for xenial".format(
+                    self.charm_config["version"], supported_versions
+                )
+
+                return (False, msg, supported_versions[0])
+            else:
+                return (True, "Version supported", None)
+        elif host.get_distrib_codename() == "bionic":
+            supported_versions = ("1.8", "1.9")
+
+            if self.charm_config["version"] not in supported_versions:
+                msg = "Version {} must be in {} for bionic".format(
+                    self.charm_config["version"], supported_versions
+                )
+
+                return (False, msg, supported_versions[0])
+            else:
+                return (True, "Version supported", None)
+
+        return (False, "Version check failed")
