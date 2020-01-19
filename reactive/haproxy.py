@@ -5,7 +5,15 @@ import os
 
 from charmhelpers import fetch
 from charmhelpers.core import hookenv, host
-from charms.reactive import hook, set_state, when, when_all, when_any, when_not
+from charms.reactive import (
+    hook,
+    remove_state,
+    set_state,
+    when,
+    when_all,
+    when_any,
+    when_not,
+)
 from libhaproxy import ProxyHelper
 
 ph = ProxyHelper()
@@ -105,6 +113,8 @@ def version_changed():
     valid, msg, _ = ph.check_version()
 
     if valid:
+        install_haproxy()
+
         if (
             ph.charm_config["version"] == "1.9"
             and ph.charm_config["enable-letsencrypt"]
@@ -112,7 +122,7 @@ def version_changed():
             # Starting with 1.9 HTTP2 will be setup during install, disable letsencrypt if we
             # have just upgraded so intsall will reenable with HTTP2 support
             ph.disable_letsencrypt()
-        install_haproxy()
+            ph.enable_letsencrypt()
         hookenv.status_set("active", "")
     else:
         hookenv.log(msg, "WARNING")
@@ -135,6 +145,7 @@ def post_series_upgrade():
         )
         ph.charm_config["version"] = version
     install_haproxy()
+    remove_state("letsencrypt.installed")
     hookenv.status_set("active", "")
 
 
